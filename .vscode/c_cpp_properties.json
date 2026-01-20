@@ -30,6 +30,7 @@
             },
             "defines": [
                 "PLATFORMIO=60118",
+                "USE_ARM_MATH_MOCK",
                 ""
             ],
             "cStandard": "c99",
