@@ -47,7 +47,11 @@
 #include <stdlib.h>
 
 /* CMSIS-DSP FFT library - provides hardware-optimized FFT functions */
+#ifdef USE_ARM_MATH_MOCK
+#include "../CMSIS-DSP-Tests/arm_math_mock.h"
+#else
 #include "arm_math.h"
+#endif
 
 #ifndef PI
 #define PI 3.14159265358979323846f

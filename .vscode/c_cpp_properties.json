@@ -8,26 +8,33 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "/home/annaz/Tuner---EPICS-RPVI/src",
-                "/home/annaz/Tuner---EPICS-RPVI/Guitar Unit Testing Files",
-                "/home/annaz/Tuner---EPICS-RPVI/CMSIS-DSP-Tests",
+                "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/Guitar Unit Testing Files",
+                "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/CMSIS-DSP-Tests",
+                "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/CMSIS-DSP-Tests/CMSIS-DSP/Include",
+                "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/CMSIS-DSP-Tests/CMSIS-DSP/PrivateInclude",
+                "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/src",
+                "C:/Users/User/.platformio/lib/Audio",
                 ""
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "/home/annaz/Tuner---EPICS-RPVI/src",
-                    "/home/annaz/Tuner---EPICS-RPVI/Guitar Unit Testing Files",
-                    "/home/annaz/Tuner---EPICS-RPVI/CMSIS-DSP-Tests",
+                    "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/Guitar Unit Testing Files",
+                    "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/CMSIS-DSP-Tests",
+                    "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/CMSIS-DSP-Tests/CMSIS-DSP/Include",
+                    "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/CMSIS-DSP-Tests/CMSIS-DSP/PrivateInclude",
+                    "C:/Users/User/OneDrive - purdue.edu/Desktop/EPCS 41200/Tuner---EPICS-RPVI/src",
+                    "C:/Users/User/.platformio/lib/Audio",
                     ""
                 ]
             },
             "defines": [
                 "PLATFORMIO=60118",
+                "USE_ARM_MATH_MOCK",
                 ""
             ],
             "cStandard": "c99",
-            "compilerPath": "/usr/bin/gcc",
+            "compilerPath": "C:/MinGW/bin/gcc.exe",
             "compilerArgs": [
                 ""
             ]

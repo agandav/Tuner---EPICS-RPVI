@@ -1,0 +1,157 @@
+========================================
+  RPVI Guitar Tuner - PC Test Suite
+========================================
+
+[1/3] Testing State Machine Logic...
+----------------------------------------
+The system cannot find the path specified.
+Running state machine tests...
+
+===========================================
+  STATE MACHINE INTEGRATION TESTS
+===========================================
+String detection module initialized.
+Number of notes in database: 33
+Audio sequencer initialized.
+  - Static feedback mode: generate_audio_feedback()
+  - Dynamic beep mode: generate_dynamic_beep_feedback()
+Audio processing init (PC stub)
+
+=== TEST: Basic State Transitions ===
+PASS: Starts in IDLE state
+[INJECT] Button 5 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 5)
+PASS: Button press -> PLAYING_TONE
+[TIME] Advanced 1000 ms -> Total: 1000 ms
+[STATE] PLAYING_TONE -> WAITING_READY_BEEP
+PASS: Tone complete -> WAITING_READY_BEEP
+[TIME] Advanced 200 ms -> Total: 1200 ms
+[STATE] WAITING_READY_BEEP -> LISTENING
+PASS: Ready beep complete -> LISTENING
+[INJECT] Audio frequency: 110.00 Hz
+[STATE] LISTENING -> PROVIDING_FEEDBACK
+        Detected: 110.00 Hz, Cents: 0.0, Direction: IN_TUNE
+PASS: Frequency detected -> PROVIDING_FEEDBACK
+[INJECT] Button 5 RELEASED
+[STATE] Button released -> IDLE
+PASS: Button release -> IDLE
+=== BASIC STATE TRANSITIONS: ALL TESTS PASSED ===
+
+=== TEST: Weak Signal Recovery ===
+[INJECT] Button 5 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 5)
+[TIME] Advanced 1000 ms -> Total: 1000 ms
+[STATE] PLAYING_TONE -> WAITING_READY_BEEP
+[TIME] Advanced 200 ms -> Total: 1200 ms
+[STATE] WAITING_READY_BEEP -> LISTENING
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[INJECT] Audio frequency: 0.00 Hz
+[STATE] LISTENING -> ERROR_RECOVERY (weak signal)
+PASS: Weak signals trigger ERROR_RECOVERY
+[TIME] Advanced 2000 ms -> Total: 3200 ms
+[STATE] ERROR_RECOVERY -> LISTENING (recovery complete)
+PASS: Auto-recovery to LISTENING after 2 seconds
+[INJECT] Button 5 RELEASED
+[STATE] Button released -> IDLE
+=== WEAK SIGNAL RECOVERY: ALL TESTS PASSED ===
+
+=== TEST: Timeout Handling ===
+[INJECT] Button 5 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 5)
+[TIME] Advanced 1000 ms -> Total: 1000 ms
+[STATE] PLAYING_TONE -> WAITING_READY_BEEP
+[TIME] Advanced 200 ms -> Total: 1200 ms
+[STATE] WAITING_READY_BEEP -> LISTENING
+[TIME] Advanced 5000 ms -> Total: 6200 ms
+[STATE] LISTENING -> ERROR_RECOVERY (timeout)
+PASS: Timeout triggers ERROR_RECOVERY
+[INJECT] Button 5 RELEASED
+[STATE] Button released -> IDLE
+=== TIMEOUT HANDLING: ALL TESTS PASSED ===
+
+=== TEST: Button Release Cancellation ===
+[INJECT] Button 3 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 3)
+[INJECT] Button 3 RELEASED
+[STATE] Button released -> IDLE
+PASS: Button release from state 1 -> IDLE
+[INJECT] Button 3 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 3)
+[INJECT] Button 3 RELEASED
+[STATE] Button released -> IDLE
+PASS: Button release from state 2 -> IDLE
+[INJECT] Button 3 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 3)
+[INJECT] Button 3 RELEASED
+[STATE] Button released -> IDLE
+PASS: Button release from state 3 -> IDLE
+[INJECT] Button 3 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 3)
+[INJECT] Button 3 RELEASED
+[STATE] Button released -> IDLE
+PASS: Button release from state 4 -> IDLE
+[INJECT] Button 3 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 3)
+[INJECT] Button 3 RELEASED
+[STATE] Button released -> IDLE
+PASS: Button release from state 5 -> IDLE
+=== BUTTON RELEASE: ALL TESTS PASSED ===
+
+=== TEST: Tuning Accuracy Feedback ===
+[INJECT] Button 5 PRESSED
+[STATE] IDLE -> PLAYING_TONE (String 5)
+[TIME] Advanced 1000 ms -> Total: 1000 ms
+[STATE] PLAYING_TONE -> WAITING_READY_BEEP
+[TIME] Advanced 200 ms -> Total: 1200 ms
+[STATE] WAITING_READY_BEEP -> LISTENING
+[INJECT] Audio frequency: 110.00 Hz
+[STATE] LISTENING -> PROVIDING_FEEDBACK
+        Detected: 110.00 Hz, Cents: 0.0, Direction: IN_TUNE
+Frequency 110.0 Hz: Cents=0.0, Direction=IN_TUNE
+PASS: Correct direction for 110.0 Hz
+[INJECT] Audio frequency: 108.00 Hz
+Frequency 108.0 Hz: Cents=-31.8, Direction=UP
+PASS: Correct direction for 108.0 Hz
+[INJECT] Audio frequency: 112.00 Hz
+Frequency 112.0 Hz: Cents=31.2, Direction=DOWN
+PASS: Correct direction for 112.0 Hz
+[INJECT] Audio frequency: 109.00 Hz
+Frequency 109.0 Hz: Cents=-15.8, Direction=UP
+PASS: Correct direction for 109.0 Hz
+[INJECT] Audio frequency: 111.00 Hz
+Frequency 111.0 Hz: Cents=15.7, Direction=DOWN
+PASS: Correct direction for 111.0 Hz
+[INJECT] Button 5 RELEASED
+[STATE] Button released -> IDLE
+=== TUNING ACCURACY: ALL TESTS PASSED ===
+
+=== TEST: Beep Rate Calculation ===
+Cents 150.0 -> Interval 100 ms
+PASS: Beep interval correct for 150.0 cents
+Cents 80.0 -> Interval 150 ms
+PASS: Beep interval correct for 80.0 cents
+Cents 60.0 -> Interval 200 ms
+PASS: Beep interval correct for 60.0 cents
+Cents 30.0 -> Interval 500 ms
+PASS: Beep interval correct for 30.0 cents
+Cents 10.0 -> Interval 1200 ms
+PASS: Beep interval correct for 10.0 cents
+Cents 3.0 -> Interval 0 ms
+PASS: Beep interval correct for 3.0 cents
+=== BEEP RATE: ALL TESTS PASSED ===
+
+===========================================
+  ALL TESTS PASSED!
+  State machine ready for hardware
+===========================================
+
+ERROR: State machine tests failed!
+Press any key to continue . . . 
