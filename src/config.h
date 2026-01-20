@@ -3,6 +3,9 @@
  *
  * Defines GPIO pins, audio configuration, and hardware-specific constants
  * for the Teensy 4.1 microcontroller implementation.
+ * 
+ * IMPORTANT: Verify ALL pin assignments with electrical team before uploading!
+ * Wrong pin configuration can damage hardware!
  */
 
 #ifndef CONFIG_H
@@ -16,35 +19,49 @@ extern "C" {
 #endif
 
 /* ============================================================================
- * STRING SELECTION BUTTONS
- * Maps guitar strings to physical tactile buttons
- * String 1 (E4) through String 6 (E2)
+ * STRING SELECTION BUTTONS (6 buttons for 6 guitar strings)
+ * Maps guitar strings to physical tactile buttons with braille labels
+ * String 1 (E4 - high E) through String 6 (E2 - low E)
+ * 
+ * TODO: VERIFY THESE PIN NUMBERS WITH ELECTRICAL TEAM!
  * ========================================================================== */
 
-#define STRING_1_BUTTON_PIN 2   // E4 string (high E)
-#define STRING_2_BUTTON_PIN 3   // B3 string
-#define STRING_3_BUTTON_PIN 4   // G3 string
-#define STRING_4_BUTTON_PIN 5   // D3 string
-#define STRING_5_BUTTON_PIN 6   // A2 string
-#define STRING_6_BUTTON_PIN 7   // E2 string (low E)
+#define STRING_1_BUTTON_PIN 2   // E4 string (high E) - VERIFY WITH EE TEAM
+#define STRING_2_BUTTON_PIN 3   // B3 string - VERIFY WITH EE TEAM
+#define STRING_3_BUTTON_PIN 4   // G3 string - VERIFY WITH EE TEAM
+#define STRING_4_BUTTON_PIN 5   // D3 string - VERIFY WITH EE TEAM
+#define STRING_5_BUTTON_PIN 6   // A2 string - VERIFY WITH EE TEAM
+#define STRING_6_BUTTON_PIN 7   // E2 string (low E) - VERIFY WITH EE TEAM
 
 /* ============================================================================
- * CHROMATIC NOTE SELECTION (Alternative to string-only buttons)
- * Optional: For users who want to select sharps/flats
+ * MODE SWITCH (Play Tone I vs Listen Only O)
+ * Physical switch on device to select operating mode
+ * 
+ * TODO: VERIFY WITH ELECTRICAL TEAM!
+ * - Is there a mode switch on the PCB?
+ * - Which GPIO pin is it connected to?
+ * - What is the logic? (HIGH = Play Tone or HIGH = Listen Only?)
  * ========================================================================== */
 
-#define CHROMATIC_BUTTON_BASE_PIN 8     // Starting pin for chromatic buttons
-#define NUM_CHROMATIC_BUTTONS 12        // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+// Uncomment this line once electrical team confirms the pin number:
+// #define MODE_SWITCH_PIN 8   // Mode I/O switch - VERIFY WITH EE TEAM
+
+// Mode switch logic (verify with electrical team):
+// If defined, assume: HIGH = Play Tone (Mode I), LOW = Listen Only (Mode O)
+// If electrical team says opposite, we'll flip the logic in main.cpp
 
 /* ============================================================================
- * VOLUME CONTROL (Rotary Potentiometer or Encoder)
+ * VOLUME CONTROL (Optional - if present on hardware)
+ * Rotary potentiometer or encoder for volume adjustment
+ * 
+ * TODO: VERIFY WITH ELECTRICAL TEAM!
  * ========================================================================== */
 
-#define VOLUME_POTENTIOMETER_PIN 14     // ADC pin for volume knob
+#define VOLUME_POTENTIOMETER_PIN 14     // ADC pin for volume knob - VERIFY WITH EE TEAM
 #define VOLUME_ADC_RESOLUTION 12        // 12-bit ADC = 4096 levels
 #define VOLUME_UPDATE_INTERVAL_MS 50    // Update volume every 50ms
 
-/* Alternative: Rotary Encoder with Click */
+/* Alternative: Rotary Encoder with Click (if using encoder instead of pot) */
 #define ROTARY_ENCODER_CLK_PIN 15       // Rotation phase A
 #define ROTARY_ENCODER_DT_PIN  16       // Rotation phase B
 #define ROTARY_ENCODER_SW_PIN  17       // Push button (click)
@@ -52,15 +69,20 @@ extern "C" {
 /* ============================================================================
  * AUDIO HARDWARE
  * Teensy 4.1 I²S interface for stereo audio output
+ * 
+ * THESE PINS ARE FIXED ON TEENSY 4.1 (do not change unless using different board)
  * ========================================================================== */
 
-/* I²S Audio Output Pins (fixed on Teensy 4.1) */
-#define AUDIO_I2S_BCLK_PIN  20  // Bit Clock
-#define AUDIO_I2S_LRCLK_PIN 21  // Left/Right Clock (frame sync)
-#define AUDIO_I2S_OUT_PIN   22  // Serial Data Out
+/* I²S Audio Output Pins (fixed on Teensy 4.1 for SGTL5000) */
+#define AUDIO_I2S_BCLK_PIN  21  // Bit Clock (BCLK)
+#define AUDIO_I2S_LRCLK_PIN 20  // Left/Right Clock (LRCLK / Frame Sync)
+#define AUDIO_I2S_OUT_PIN   7   // Serial Data Out (TX)
+#define AUDIO_I2S_IN_PIN    8   // Serial Data In (RX) - for microphone
 
-/* Optional: Power amplifier enable/shutdown pin */
-#define AUDIO_AMP_ENABLE_PIN 23 // GPIO to enable external amplifier
+/* Audio amplifier enable/shutdown pin (if external amp present) */
+// TODO: VERIFY WITH ELECTRICAL TEAM!
+// Uncomment if there's an amplifier enable pin:
+// #define AUDIO_AMP_ENABLE_PIN 23 // GPIO to enable external amplifier - VERIFY WITH EE TEAM
 
 /* ============================================================================
  * AUDIO CONFIGURATION
@@ -74,17 +96,23 @@ extern "C" {
 /* Volume control parameters */
 #define VOLUME_MIN              0.0f    // Silent
 #define VOLUME_MAX              1.0f    // Full volume
-#define VOLUME_DEFAULT          0.7f    // Recommended startup volume
+#define VOLUME_DEFAULT          0.7f    // Recommended startup volume (70%)
 
 /* ============================================================================
- * SD CARD / AUDIO FILE STORAGE
+ * SD CARD / AUDIO FILE STORAGE (Optional)
+ * For accessibility features - spoken string names and directions
+ * 
+ * TODO: VERIFY WITH ELECTRICAL TEAM!
  * ========================================================================== */
 
-#define SD_CHIP_SELECT_PIN  10  // SPI chip select for SD card
+#define SD_CHIP_SELECT_PIN  BUILTIN_SDCARD  // Use Teensy 4.1 built-in SD card
+// If using external SD card via SPI, uncomment and define CS pin:
+// #define SD_CHIP_SELECT_PIN  10  // SPI chip select - VERIFY WITH EE TEAM
+
 #define AUDIO_FILES_PATH    "/AUDIO/"
 #define MAX_FILENAME_LENGTH 256
 
-/* Pre-recorded audio file names */
+/* Pre-recorded audio file names (if SD card is present) */
 #define AUDIO_FILE_E_STRING     "/AUDIO/STRING_E.wav"
 #define AUDIO_FILE_B_STRING     "/AUDIO/STRING_B.wav"
 #define AUDIO_FILE_G_STRING     "/AUDIO/STRING_G.wav"
@@ -120,11 +148,18 @@ extern "C" {
 
 /* ============================================================================
  * MICROPHONE INPUT
+ * 
+ * TODO: VERIFY WITH ELECTRICAL TEAM!
+ * - Is microphone connected to SGTL5000 line-in?
+ * - Or connected to a Teensy ADC pin?
+ * - Or is it an I²S MEMS microphone?
  * ========================================================================== */
 
-#define MICROPHONE_INPUT_PIN    24      // ADC pin for microphone
+// If using ADC for microphone (uncomment if applicable):
+// #define MICROPHONE_INPUT_PIN    A0      // ADC pin for microphone - VERIFY WITH EE TEAM
+
 #define MICROPHONE_SAMPLE_RATE  44100   // 44.1 kHz recording rate
-#define MICROPHONE_GAIN         20      // dB gain amplification
+#define MICROPHONE_GAIN         20      // dB gain amplification (if adjustable)
 
 /* ============================================================================
  * TEENSY HARDWARE SPECIFICS
@@ -144,8 +179,28 @@ extern "C" {
 
 #define ENABLE_DEBUG_PRINTS     1       // Set to 0 to disable console output
 #define SERIAL_BAUD_RATE        115200  // USB serial monitor speed
-#define DEBUG_FFT_OUTPUT        0       // Print FFT magnitude spectrum
+#define DEBUG_FFT_OUTPUT        0       // Print FFT magnitude spectrum (very verbose!)
 #define DEBUG_TUNING_RESULTS    1       // Print tuning analysis results
+
+/* ============================================================================
+ * BATTERY MANAGEMENT (If applicable)
+ * 
+ * TODO: VERIFY WITH ELECTRICAL TEAM!
+ * - Is there battery voltage monitoring?
+ * - Low battery detection circuit?
+ * ========================================================================== */
+
+// Uncomment if battery monitoring is present:
+// #define BATTERY_VOLTAGE_PIN     A1      // ADC pin for battery voltage - VERIFY WITH EE TEAM
+// #define BATTERY_LOW_THRESHOLD   3.3f    // Voltage threshold for low battery warning
+
+/* ============================================================================
+ * AUDIO PROCESSING CONFIGURATION
+ * ========================================================================== */
+
+#define SAMPLE_RATE    10000    // 10 kHz sample rate for FFT processing
+#define SAMPLE_SIZE    1024     // Number of samples to collect
+#define MIN_AMPLITUDE  100      // Minimum signal amplitude to process
 
 #ifdef __cplusplus
 }
