@@ -26,7 +26,7 @@
 extern "C" {
     #include "audio_processing.h"
     #include "string_detection.h"
-    #include "audio_sequencer_v2.h"
+    #include "audio_sequencer.h"
     #include "note_parser.h"
     #include "hardware_interface.h"
     #include "teensy_audio_io.h"

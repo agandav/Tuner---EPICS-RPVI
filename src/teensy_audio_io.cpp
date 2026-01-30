@@ -171,34 +171,8 @@ void update_tone_playback(void) {
 
 /* ============================================================================
  * AUDIO AMPLIFIER CONTROL (PAM8302A from schematic)
+ * Note: Amplifier control functions are in hardware_interface.c
  * ========================================================================== */
-
-/**
- * Enable the audio amplifier
- * Call this before playing audio
- */
-void audio_amplifier_enable(void) {
-#ifdef AUDIO_AMP_ENABLE_PIN
-    digitalWrite(AUDIO_AMP_ENABLE_PIN, HIGH);
-    Serial.println("[AUDIO] Amplifier enabled");
-#else
-    // No amplifier enable pin - always on
-    Serial.println("[AUDIO] Amplifier control not configured");
-#endif
-}
-
-/**
- * Disable the audio amplifier to save power
- * Call this when not using audio
- */
-void audio_amplifier_disable(void) {
-#ifdef AUDIO_AMP_ENABLE_PIN
-    digitalWrite(AUDIO_AMP_ENABLE_PIN, LOW);
-    Serial.println("[AUDIO] Amplifier disabled");
-#else
-    // No amplifier enable pin
-#endif
-}
 
 /* ============================================================================
  * MICROPHONE INPUT & FREQUENCY DETECTION
@@ -214,27 +188,15 @@ void audio_amplifier_disable(void) {
  * This function interfaces with the audio_processing module for FFT analysis
  */
 double read_frequency_from_microphone(int16_t* buffer, int buffer_size) {
-    // Interface with audio_processing.c module
+    /* Note: Direct microphone reading requires custom implementation.
+     * The Teensy Audio Library uses a callback/update system via AudioStream.
+     * Audio data should be accessed through AudioAnalyzeFFT1024 or similar analysis objects.
+     * This function is a placeholder for integration with audio_processing.c
+     */
+    (void)buffer;
+    (void)buffer_size;
     
-    // Check if audio input is available
-    if (i2s_input.available()) {
-        // Read audio block
-        audio_block_t *block = i2s_input.readBlock();
-        
-        if (block != NULL) {
-            // Send block to FFT processing (audio_processing.c)
-            // Integration with FFT pipeline would be implemented here
-            
-            // Release the audio block after processing
-            AudioStream::release(block);
-            
-            // Return FFT-detected frequency
-            // Note: Full FFT integration requires linking with audio_processing module
-            return 0.0;  // Returns detected frequency from FFT
-        }
-    }
-    
-    return 0.0;  // No signal detected
+    return 0.0;  // Placeholder - actual frequency detection via AudioAnalyzeFFT1024
 }
 
 /* ============================================================================
