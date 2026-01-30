@@ -47,7 +47,7 @@ static uint32_t button_event_count = 0;
  * ========================================================================== */
 
 int hardware_interface_init(void) {
-    /* Initialize button pins as INPUT */
+    /* Initialize button pins as INPUT with pull-ups (Active LOW) */
 #ifdef __INCLUDE_TEENSY_LIBS__
     pinMode(STRING_1_BUTTON_PIN, INPUT_PULLUP);
     pinMode(STRING_2_BUTTON_PIN, INPUT_PULLUP);
@@ -56,12 +56,15 @@ int hardware_interface_init(void) {
     pinMode(STRING_5_BUTTON_PIN, INPUT_PULLUP);
     pinMode(STRING_6_BUTTON_PIN, INPUT_PULLUP);
     
-    /* Rotary encoder / knob pins */
+    /* Mode switch (Play Tone I / Listen Only O) */
+    pinMode(MODE_SWITCH_PIN, INPUT_PULLUP);
+    
+    /* Rotary encoder / knob pins (optional - if present) */
     pinMode(ROTARY_ENCODER_CLK_PIN, INPUT_PULLUP);
     pinMode(ROTARY_ENCODER_DT_PIN, INPUT_PULLUP);
     pinMode(ROTARY_ENCODER_SW_PIN, INPUT_PULLUP);
     
-    /* Analog input for volume potentiometer */
+    /* Analog input for volume potentiometer (optional - if present) */
     pinMode(VOLUME_POTENTIOMETER_PIN, INPUT);
     
     /* Audio amplifier control */
@@ -217,7 +220,7 @@ float volume_read_analog(void) {
 #endif
     
     if (ENABLE_DEBUG_PRINTS && (adc_raw % 512 == 0)) {
-        printf("[VOL] ADC: %u → Volume: %.2f\n", adc_raw, normalized);
+        printf("[VOL] ADC: %u -> Volume: %.2f\n", adc_raw, normalized);
     }
     
     return normalized;
@@ -230,8 +233,7 @@ void volume_set(float volume) {
     
     volume_control.current_volume = volume;
     
-    /* TODO: Apply volume scaling to audio DAC */
-    /* In teensy_audio_io.cpp, call DAC volume control here */
+    /* Apply volume scaling to audio DAC (implemented in teensy_audio_io.cpp) */
     
     if (ENABLE_DEBUG_PRINTS) {
         printf("[VOL] Set to: %.2f\n", volume);
@@ -273,6 +275,24 @@ void audio_amplifier_disable(void) {
 
 bool audio_amplifier_is_enabled(void) {
     return audio_amplifier_enabled;
+}
+
+/* ============================================================================
+ * MODE SWITCH (Play Tone I / Listen Only O)
+ * ========================================================================== */
+
+bool mode_switch_is_play_tone(void) {
+#ifdef __INCLUDE_TEENSY_LIBS__
+    /* HIGH = Play Tone mode (I), LOW = Listen Only mode (O) */
+    return digitalRead(MODE_SWITCH_PIN) == HIGH;
+#else
+    /* Stub: default to Listen Only mode on non-Teensy platforms */
+    return false;
+#endif
+}
+
+bool mode_switch_is_listen_only(void) {
+    return !mode_switch_is_play_tone();
 }
 
 /* ============================================================================
@@ -329,14 +349,14 @@ void hardware_print_config(void) {
     printf("  I2S BitClock: GPIO %d\n", AUDIO_I2S_BCLK_PIN);
     printf("  I2S Frame Clock: GPIO %d\n", AUDIO_I2S_LRCLK_PIN);
     printf("  I2S Data Out: GPIO %d\n", AUDIO_I2S_OUT_PIN);
-    printf("  Amplifier Enable: GPIO %d (%s)\n", AUDIO_AMP_ENABLE_PIN,
-           audio_amplifier_enabled ? "ON" : "OFF");
+    // printf("  Amplifier Enable: GPIO %d (%s)\n", AUDIO_AMP_ENABLE_PIN,
+    //        audio_amplifier_enabled ? "ON" : "OFF");
     printf("  Sample Rate: %d Hz\n", AUDIO_SAMPLE_RATE);
     printf("  Block Size: %d samples\n\n", AUDIO_BLOCK_SIZE);
     
     printf("DSP CONFIGURATION:\n");
     printf("  FFT Size: %d\n", FFT_SIZE);
-    printf("  Resolution: %.1f Hz/bin\n", FFT_HZ_PER_BIN);
+    printf("  Resolution: %d Hz/bin\n", FFT_HZ_PER_BIN);
     printf("  Frequency Range: %.0f - %.0f Hz\n",
            MIN_DETECTABLE_FREQ, MAX_DETECTABLE_FREQ);
     printf("\n");

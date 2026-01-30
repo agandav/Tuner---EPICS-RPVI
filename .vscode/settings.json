@@ -64,5 +64,6 @@
   "files.associations": {
     "string.h": "c"
   },
-  "C_Cpp_Runner.cStandard": ""
+  "C_Cpp_Runner.cStandard": "",
+  "claudeCodeChat.permissions.yoloMode": true
 }

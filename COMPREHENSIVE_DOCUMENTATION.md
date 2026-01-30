@@ -174,11 +174,11 @@ Think of this tuner like a restaurant kitchen with different stations:
    ↓
 4. AUDIO SEQUENCER (The Announcer)
    ↓
-   Plays audio: "A string... 30 cents... tune UP"
+   Generates synthesized audio feedback using tone patterns
    ↓
 5. SPEAKER (The Voice)
    ↓
-   User hears the feedback and adjusts their guitar!
+   User hears synthesized tones indicating tuning status!
 ```
 
 Each piece does ONE job really well, and they all work together in sequence.
@@ -470,75 +470,69 @@ Other parts of the program need to know "what can string_detection.c do for me?"
 ---
 
 ### src/audio_sequencer.c - The Announcer
-**What it is**: Plays audio feedback to the user  
+**What it is**: Generates synthesized audio feedback to the user  
 **Size**: About 238 lines  
 **Programming Language**: C
 
 **What this file does in plain English:**
 
-After the tuner knows "A string, 30 cents, tune UP," this file's job is to TELL the user by playing audio files.
+After the tuner knows "A string, 30 cents, tune UP," this file's job is to TELL the user using real-time synthesized audio tones.
 
 **How it works:**
 
-The tuner has pre-recorded audio files on an SD card (a tiny memory card, like in a camera):
-- "E.wav", "A.wav", "D.wav", "G.wav", "B.wav" (string names)
-- "5CENTS.wav", "10CENTS.wav", "15CENTS.wav", etc. (how far off)
-- "TUNEUP.wav", "TUNEDOWN.wav", "INTUNE.wav" (which direction)
+The tuner generates audio feedback using the Teensy Audio Library's AudioSynthWaveformSine:
+- No SD card needed
+- No WAV files stored
+- All audio is mathematically generated in real-time
 
-This file plays them in sequence:
-1. Play "A.wav" → User hears "A string"
-2. Wait for it to finish
-3. Play "30CENTS.wav" → User hears "30 cents"
-4. Wait for it to finish
-5. Play "TUNEUP.wav" → User hears "tune up"
-6. Done!
+This file uses tone patterns and beeps:
+1. Play reference tone for the detected string (e.g., 110 Hz for A string)
+2. Use beeping patterns to indicate how far off (fast beeps = very off, slow beeps = close)
+3. Different beep rates indicate tuning direction
+4. Solid tone = perfectly in tune!
 
-**Two modes of operation:**
+**Operating mode:**
 
-**MODE 1: Static Feedback** (Default)
-- Plays the three audio files in sequence
-- Straightforward and clear
-- Good for beginners
-
-**MODE 2: Dynamic Beeping** (Alternative)
-- Makes beeping sounds that speed up as you get closer to in-tune
-- Far from in-tune → fast beeping (10 beeps/second)
-- Close to in-tune → slow beeping (1 beep/second)
-- Perfectly in-tune → continuous tone
+**Dynamic Tone Feedback with Real-time Synthesis**
+- Plays the reference frequency for the detected string
+- Uses beeping patterns that change rate based on tuning accuracy
+- Far from in-tune → fast beeping (rapid pulses)
+- Close to in-tune → slow beeping (gentle pulses)
+- Perfectly in-tune → solid continuous tone
 - Similar to parking sensors in cars!
+- All audio generated mathematically - no files needed
 
 **The key parts inside this file:**
 
-1. **audio_sequencer_init()**
-   - Sets up which mode to use
-   - Prepares for playing audio
-   - Called once at startup
+1. **playNoteTone()**
+   - Plays a synthesized tone using note notation (e.g., "E2", "A4")
+   - Uses the Teensy Audio Library's sine wave generator
+   - Duration specified in milliseconds
 
-2. **generate_audio_feedback()**
-   - Receives the TuningResult
-   - Decides which files to play
-   - Starts the playback sequence
+2. **playFrequencyTone()**
+   - Plays a tone at a specific frequency in Hz
+   - Used for reference pitch playback
+   - All audio generated in real-time
 
-3. **audio_sequencer_update()**
-   - Called repeatedly in the main loop
-   - Manages the sequence: "Is file 1 done? Then play file 2..."
-   - Like a traffic light controller: green → yellow → red → repeat
+3. **playGuitarString()**
+   - Plays the reference tone for a specific guitar string (1-6)
+   - String 1 → plays E4 (329.63 Hz)
+   - String 6 → plays E2 (82.41 Hz)
 
-4. **get_string_filename()**
-   - Converts string number to filename
-   - String 5 → "A.WAV"
-   - Simple but essential
+4. **playStringIdentifier()**
+   - Uses distinct tone patterns to identify each string
+   - String 1: single high beep
+   - String 2: two medium beeps
+   - Each string has unique audio signature
 
-5. **get_cents_filename()**
-   - Converts cents to filename
-   - 27 cents → "25CENTS.WAV" (rounds to nearest 5)
-   - 33 cents → "30CENTS.WAV"
+5. **playBeep()**
+   - Generates short feedback beeps
+   - Frequency and duration configurable
+   - Used for tuning status indication
 
-6. **calculate_beep_interval()** (for dynamic mode)
-   - Determines beep rate based on how off-tune
-   - 100 cents off → beep every 100ms (very fast)
-   - 5 cents off → beep every 1200ms (slow)
-   - Creates that "parking sensor" effect
+6. **stopAllTones()**
+   - Immediately stops all audio output
+   - Cleans up synthesis state
 
 **Important numbers:**
 
@@ -556,9 +550,9 @@ This file plays them in sequence:
 - Change feedback style completely
 
 **What happens if this file breaks:**
-- The tuner can still detect frequencies but won't tell you the results
-- It might play the wrong audio files
-- Sequences might get stuck or repeat forever
+- The tuner can still detect frequencies but won't provide audio feedback
+- No tones or beeps will be generated
+- Silent tuner - defeats the accessibility purpose!
 
 ---
 
@@ -732,7 +726,13 @@ The audio amplifier chip draws power. This file can turn it on/off to save batte
    - Saves battery power
    - Like a light switch for the speaker system
 
-7. **tactile_feedback_click/confirm/warning()**
+7. **mode_switch_is_play_tone() / mode_switch_is_listen_only()**
+   - Reads the physical mode switch state
+   - Play Tone mode: tuner plays reference pitch, then listens
+   - Listen Only mode: tuner only listens and provides feedback
+   - Returns true/false based on switch position
+
+8. **tactile_feedback_click/confirm/warning()**
    - Plays short sounds to confirm button presses
    - Click = single short beep (acknowledgment)
    - Confirm = double beep (success)
@@ -826,17 +826,21 @@ Think of it like your phone's Settings app - one place to adjust everything!
 The Teensy 4.1 has 55 pins (tiny metal connection points). Each pin can be used for different purposes. This file assigns each pin a job:
 
 ```
-Pin 2 → String 1 Button (high E)
-Pin 3 → String 2 Button (B)
-Pin 4 → String 3 Button (G)
-Pin 5 → String 4 Button (D)
-Pin 6 → String 5 Button (A)
-Pin 7 → String 6 Button (low E)
-Pin 14 → Volume Potentiometer
-Pin 20-22 → Audio (I2S protocol - digital audio standard)
-Pin 23 → Amplifier Enable
-Pin 24 → Microphone Input
-Pin 10 → SD Card communication
+Pin 0 → String 1 Button (high E)
+Pin 1 → String 2 Button (B)
+Pin 2 → String 3 Button (G)
+Pin 3 → String 4 Button (D)
+Pin 4 → String 5 Button (A)
+Pin 5 → String 6 Button (low E)
+Pin 6 → Mode Switch (Play Tone I / Listen Only O)
+Pin 7 → I2S Data Out (to amplifier)
+Pin 8 → I2S Data In (from microphone)
+Pin 9-11 → Rotary Encoder (optional volume control)
+Pin 14 (A0) → Microphone ADC Input
+Pin 15 (A1) → Volume Potentiometer
+Pin 20 → I2S LRCLK (Left/Right Clock)
+Pin 21 → I2S BCLK (Bit Clock)
+Pin 23 → Amplifier Enable (PAM8302A shutdown control)
 ```
 
 **Why this matters:** If you build the physical hardware differently (button on pin 8 instead of pin 2), you just change the number here instead of hunting through all the code files!
@@ -909,7 +913,19 @@ Pin 10 → SD Card communication
   - If you're 50+ cents off, you might be tuning to the wrong note!
   - Could trigger a "are you sure?" message
 
-**SECTION 5: Debug Settings**
+**SECTION 5: SD Card (NOT USED)**
+
+```c
+// #define USE_SD_CARD  // Commented out - not used in this implementation
+```
+
+**Important:** This tuner does NOT use an SD card!
+- All audio is synthesized in real-time
+- No WAV files stored or needed
+- Simpler hardware, lower cost
+- The SD card definitions remain in config.h only as reference for future expansion
+
+**SECTION 6: Debug Settings**
 
 ```c
 #define ENABLE_DEBUG_PRINTS 1   // 1 = ON, 0 = OFF
@@ -940,7 +956,7 @@ Pin 10 → SD Card communication
 
 ### src/teensy_audio_io.cpp - The Audio Driver
 **What it is**: The software that controls the microphone and speaker  
-**Size**: About 232 lines  
+**Size**: About 295 lines  
 **Programming Language**: C++ (slightly different from C, but similar)
 
 **What this file does in plain English:**
@@ -948,69 +964,78 @@ Pin 10 → SD Card communication
 This file is the "driver" for the audio hardware - think of it like the driver software you install to make a printer work with your computer.
 
 It handles:
-1. **SD Card Management**: Reading audio files from the SD card
-2. **Microphone Input**: Getting sound data from the microphone
-3. **Speaker Output**: Sending sound data to the speaker
-4. **Volume Control**: Making sounds louder or quieter
+1. **Real-time Audio Synthesis**: Generating sine wave tones mathematically
+2. **Microphone Input**: Getting sound data from the microphone via I2S
+3. **Speaker Output**: Sending synthesized audio to the speaker via I2S
+4. **Audio System Management**: Initializing and controlling the Teensy Audio Library
 
-**The SD Card System:**
+**NO SD Card - Pure Synthesis:**
 
-The tuner stores all its audio files (like "A.WAV", "10CENTS.WAV", "TUNEUP.WAV") on a tiny SD card - the same kind used in cameras.
+This tuner uses ZERO pre-recorded audio files. Everything is generated in real-time:
+- AudioSynthWaveformSine generates pure tones
+- Frequencies calculated mathematically (A4 = 440 Hz, etc.)
+- No storage needed - all audio created on-demand
+- Simpler, more reliable, lower power consumption
 
-This file knows how to:
-- Check if an SD card is inserted
-- Open files from the SD card
-- Read audio data from those files
-- Close files when done
+**I2S Audio Interface:**
 
-**The Audio Codec:**
+The Teensy 4.1 uses I2S (Inter-IC Sound) protocol for digital audio:
+- AudioInputI2S captures microphone data directly
+- AudioOutputI2S sends audio to external amplifier (PAM8302A)
+- No separate codec chip needed - Teensy handles it internally
+- Digital audio path reduces noise and improves quality
 
-The Teensy 4.1 has a special chip called an "audio codec" (coder-decoder). This chip:
-- Converts electrical signals from the microphone into numbers the computer can process
-- Converts numbers from the computer into electrical signals for the speaker
-- Handles all the complex electronics automatically
-
-This file is what tells the codec what to do!
+This file configures the I2S system and manages audio objects!
 
 **The key parts inside this file:**
 
 1. **init_audio_system()**
-   - Turns on the SD card reader
-   - Initializes the audio codec
-   - Sets up audio pathways (microphone → processor, processor → speaker)
+   - Initializes the Teensy Audio Library
+   - Allocates audio memory blocks (20 blocks)
+   - Sets up sine wave generators (sine1, beep_sine)
+   - Configures I2S audio connections
    - Like connecting all the cables before a concert!
 
-2. **open_audio_file()**
-   - Opens a .WAV file from the SD card
-   - Checks the file format (must be 44.1kHz, 16-bit, mono or stereo)
-   - Prepares it for playback
-   - Returns an error if file is missing or corrupted
+2. **play_tone()**
+   - Main tone playback function
+   - Sets frequency and amplitude on sine wave generator
+   - Example: play_tone(329.63, 2000) plays E4 for 2 seconds
+   - Non-blocking: tracks duration with millis()
 
-3. **read_audio_block()**
-   - Reads the next chunk of audio data (128 samples at a time)
-   - Loads it into memory for playback
-   - Like reading the next paragraph of a book
+3. **play_beep()**
+   - Plays short feedback beeps
+   - Uses separate beep_sine generator
+   - Typical range: 400-1200 Hz, 50-200 ms duration
 
-4. **close_audio_file()**
-   - Closes the file when playback is complete
-   - Frees up memory
-   - Good housekeeping!
+4. **play_ready_beep()**
+   - Signals user that tuner is ready
+   - Plays 1000 Hz tone for 200 ms
+   - Audio confirmation for blind users
 
-5. **play_audio_file()**
-   - High-level "easy button"
-   - Just say `play_audio_file("A.WAV")` and it handles everything
-   - Opens file → plays it → closes file
-   - Most other parts of the code use this function
+5. **stop_all_audio()**
+   - Immediately silences all audio output
+   - Sets all sine amplitudes to 0.0
+   - Emergency stop function
 
-6. **get_fft_data()**
-   - Retrieves frequency analysis data
-   - Used by audio_processing.c to get FFT results
-   - Bridge between hardware and analysis
+6. **update_tone_playback()**
+   - Called in main loop
+   - Manages non-blocking tone duration
+   - Automatically stops tones when duration expires
 
-7. **set_volume()**
-   - Controls output volume (0.0 = silent, 1.0 = maximum)
-   - Adjusts the audio codec's amplifier
-   - Separate from the external amplifier!
+7. **audio_amplifier_enable() / disable()**
+   - Controls external PAM8302A amplifier chip
+   - Saves power by shutting off when idle
+   - GPIO pin control (AUDIO_AMP_ENABLE_PIN)
+
+8. **read_frequency_from_microphone()**
+   - Captures audio from AudioInputI2S
+   - Interfaces with FFT processing module
+   - Returns detected frequency in Hz
+
+9. **print_audio_status()**
+   - Diagnostic function showing CPU and memory usage
+   - AudioProcessorUsage() - how much CPU the audio system uses
+   - AudioMemoryUsage() - how many audio blocks allocated
 
 **Important concepts:**
 
@@ -1040,11 +1065,11 @@ This file is what tells the codec what to do!
 - Support different sample rates
 
 **What happens if this file breaks:**
-- SD card might not be detected
-- Audio files won't play
-- Volume control might not work
-- Microphone might not capture sound
-- Complete silence!
+- No audio synthesis (no tones generated)
+- Microphone input won't work
+- Amplifier control might fail
+- Audio memory allocation errors
+- Complete silence - tuner becomes useless!
 
 ---
 

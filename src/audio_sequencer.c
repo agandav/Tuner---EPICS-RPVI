@@ -1,88 +1,289 @@
 /**
- * audio_sequencer.c - Audio sequencing implementation
+ * audio_sequencer_v2.c - Audio sequencing with synthesized tones
  *
- * Generates appropriate audio feedback based on tuning results
- * Plays note names, cent values, and tuning directions
- * Implements dynamic beep rate feedback based on tuning accuracy
+ * NO WAV FILES REQUIRED!
+ * All audio is generated in real-time using the Teensy Audio Library
+ * Uses CFugue-style notation for clean, readable code
  */
 
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include "audio_sequencer.h"
+#include "note_parser.h"
+
+/* ============================================================================
+ * STATE VARIABLES
+ * ========================================================================== */
 
 static int is_playing = 0;
 static const TuningResult* current_result = NULL;
 static int playback_step = 0;
 
-/* ============================================================================
- * DYNAMIC BEEP RATE FEEDBACK
- * ========================================================================== */
-
-/** Beep rate configuration: maps cents offset to beep interval (ms) */
-typedef struct {
-	double max_cents;        /* Threshold for this beep rate */
-	uint32_t beep_interval;  /* Time between beeps in milliseconds */
-	uint32_t beep_duration;  /* Duration of each beep in milliseconds */
-} BeepRateConfig;
-
-/**
- * Beep rate thresholds (in order from worst to best tuning)
- * User plays note → detect frequency → calculate cents offset →
- * Look up beep rate → faster beeps = further from tune
- */
-static const BeepRateConfig beep_rates[] = {
-	{100.0,  100},   /* > 100 cents off: fastest (100 ms between beeps = 10 beeps/sec) */
-	{75.0,   150},   /* 75-100 cents: very fast (150 ms = 6.7 beeps/sec) */
-	{50.0,   200},   /* 50-75 cents: fast (200 ms = 5 beeps/sec) */
-	{40.0,   300},   /* 40-50 cents: medium-fast (300 ms = 3.3 beeps/sec) */
-	{25.0,   500},   /* 25-40 cents: medium (500 ms = 2 beeps/sec) */
-	{15.0,   800},   /* 15-25 cents: slow (800 ms = 1.25 beeps/sec) */
-	{5.0,    1200},  /* 5-15 cents: very slow (1200 ms = 0.83 beeps/sec) */
-	{0.0,    0},     /* < 5 cents: no beep (in tune) */
-};
-
-#define NUM_BEEP_RATES (sizeof(beep_rates) / sizeof(BeepRateConfig))
-
-/* State for beep timing */
+/* Dynamic beep state */
 static uint32_t last_beep_time = 0;
 static uint32_t beep_end_time = 0;
 static int beeping_active = 0;
 
+/* Current string being tuned */
+static int current_string = 1;
+
+/* ============================================================================
+ * BEEP RATE CONFIGURATION (Same as original)
+ * ========================================================================== */
+
+typedef struct {
+	double max_cents;
+	uint32_t beep_interval;
+	uint32_t beep_duration;
+} BeepRateConfig;
+
+static const BeepRateConfig beep_rates[] = {
+	{100.0,  100},   // > 100 cents off: fastest
+	{75.0,   150},   // 75-100 cents: very fast
+	{50.0,   200},   // 50-75 cents: fast
+	{40.0,   300},   // 40-50 cents: medium-fast
+	{25.0,   500},   // 25-40 cents: medium
+	{15.0,   800},   // 15-25 cents: slow
+	{5.0,    1200},  // 5-15 cents: very slow
+	{0.0,    0},     // < 5 cents: no beep (in tune)
+};
+
+#define NUM_BEEP_RATES (sizeof(beep_rates) / sizeof(BeepRateConfig))
+
+/* ============================================================================
+ * TEENSY AUDIO LIBRARY INTERFACE
+ * Now connected to actual audio hardware!
+ * ========================================================================== */
+
+#ifndef ARDUINO
+// Native platform stubs - no actual audio output
+static void play_tone(float frequency, uint32_t duration_ms) {
+	(void)frequency;
+	(void)duration_ms;
+}
+
+static void play_beep(float frequency, uint32_t duration_ms) {
+	(void)frequency;
+	(void)duration_ms;
+}
+
+static void stop_all_audio(void) {
+	// No-op for native
+}
+#else
+// Import functions from teensy_audio_io.cpp for Teensy
+void play_tone(float frequency, uint32_t duration_ms);
+void play_beep(float frequency, uint32_t duration_ms);
+void stop_all_audio(void);
+#endif
+
 /**
- * Calculate beep interval based on cents offset
- * 
- * @param cents_offset: How far the played note is from target (in cents)
- *                      Positive = too high, Negative = too low
- *                      Magnitude indicates error size
- * 
- * @return: Milliseconds between beeps (higher = further from tune)
- *          0 = in tune (no beeping)
+ * Play a tone using the Teensy Audio Library
+ * This now makes REAL SOUND through your speaker!
  */
+static void teensy_play_tone(float frequency, uint32_t duration_ms) {
+	printf("[TEENSY AUDIO] Playing %.2f Hz for %lu ms\n", frequency, duration_ms);
+	play_tone(frequency, duration_ms);  // ? ACTUAL AUDIO OUTPUT!
+}
+
+/**
+ * Play a beep using the Teensy Audio Library
+ * This now makes REAL BEEPS through your speaker!
+ */
+static void teensy_play_beep(float frequency, uint32_t duration_ms) {
+	printf("[BEEP] %.2f Hz for %lu ms\n", frequency, duration_ms);
+	play_beep(frequency, duration_ms);  // ? ACTUAL BEEP OUTPUT!
+}
+
+/**
+ * Stop all audio output
+ * This now actually silences the speaker!
+ */
+static void teensy_stop_audio(void) {
+	printf("[TEENSY AUDIO] Stopping all audio\n");
+	stop_all_audio();  // ? ACTUALLY STOPS AUDIO!
+}
+
+/* ============================================================================
+ * SYNTHESIZED TONE PLAYBACK (CFugue-style)
+ * ========================================================================== */
+
+void playNoteTone(const char* note, uint32_t duration_ms) {
+	float frequency = parseNote(note);
+	
+	if (frequency > 0.0f) {
+		printf("[PLAY NOTE] %s = %.2f Hz for %lu ms\n", note, frequency, duration_ms);
+		teensy_play_tone(frequency, duration_ms);
+	} else {
+		printf("[ERROR] Invalid note: %s\n", note);
+	}
+}
+
+void playFrequencyTone(float frequency, uint32_t duration_ms) {
+	teensy_play_tone(frequency, duration_ms);
+}
+
+void playBeep(float frequency, uint32_t duration_ms) {
+	teensy_play_beep(frequency, duration_ms);
+}
+
+void stopAllTones(void) {
+	teensy_stop_audio();
+}
+
+/* ============================================================================
+ * GUITAR STRING PLAYBACK
+ * ========================================================================== */
+
+void playGuitarString(int string_num, uint32_t duration_ms) {
+	const char* note = getStringNote(string_num);
+	
+	if (note != NULL) {
+		printf("[PLAY STRING %d] %s\n", string_num, note);
+		playNoteTone(note, duration_ms);
+	} else {
+		printf("[ERROR] Invalid string number: %d\n", string_num);
+	}
+}
+
+void playCurrentString(void) {
+	playGuitarString(current_string, 2000);  // 2 second default
+}
+
+/* ============================================================================
+ * AUDIO CUE SYNTHESIS (Replaces WAV Files)
+ * ========================================================================== */
+
+void playStringIdentifier(int string_num) {
+	printf("[STRING ID] String %d: ", string_num);
+	
+	// Each string has a unique beep pattern
+	float beep_freq = 800.0f;  // Base frequency for identifier beeps
+	uint32_t beep_duration = 100;
+	uint32_t beep_pause = 150;
+	
+	// Play N beeps for string N
+	for (int i = 0; i < string_num; i++) {
+		teensy_play_beep(beep_freq, beep_duration);
+		if (i < string_num - 1) {
+			// Pause between beeps (simulate with delay)
+			printf("...");
+		}
+	}
+	printf("\n");
+}
+
+void playCentsIndicator(double cents_offset) {
+	double abs_cents = fabs(cents_offset);
+	
+	if (abs_cents < 5.0) {
+		printf("[CENTS] In tune! (%.1f cents)\n", cents_offset);
+		// Play happy "in tune" tone
+		teensy_play_tone(1000.0f, 200);
+	} else if (abs_cents < 15.0) {
+		printf("[CENTS] Slightly off (~10 cents): %.1f\n", cents_offset);
+		teensy_play_beep(600.0f, 100);
+	} else if (abs_cents < 25.0) {
+		printf("[CENTS] Off (~20 cents): %.1f\n", cents_offset);
+		teensy_play_beep(500.0f, 100);
+		teensy_play_beep(500.0f, 100);
+	} else {
+		printf("[CENTS] Way off (>25 cents): %.1f\n", cents_offset);
+		teensy_play_beep(400.0f, 100);
+		teensy_play_beep(400.0f, 100);
+		teensy_play_beep(400.0f, 100);
+	}
+}
+
+void playDirectionCue(const char* direction) {
+	if (strcmp(direction, "UP") == 0) {
+		printf("[DIRECTION] Tune UP (tighten string)\n");
+		// Rising tone
+		teensy_play_tone(400.0f, 150);
+		teensy_play_tone(600.0f, 150);
+	} else if (strcmp(direction, "DOWN") == 0) {
+		printf("[DIRECTION] Tune DOWN (loosen string)\n");
+		// Falling tone
+		teensy_play_tone(600.0f, 150);
+		teensy_play_tone(400.0f, 150);
+	} else if (strcmp(direction, "IN_TUNE") == 0) {
+		printf("[DIRECTION] IN TUNE!\n");
+		// Happy ascending tones
+		teensy_play_tone(523.0f, 100);  // C5
+		teensy_play_tone(659.0f, 100);  // E5
+		teensy_play_tone(784.0f, 200);  // G5
+	} else {
+		printf("[DIRECTION] Unknown: %s\n", direction);
+	}
+}
+
+/* ============================================================================
+ * ENHANCED FEEDBACK MODES
+ * ========================================================================== */
+
+void generate_synthesized_feedback(const TuningResult* result) {
+	if (result == NULL) {
+		return;
+	}
+	
+	printf("\n=== SYNTHESIZED AUDIO FEEDBACK ===\n");
+	
+	// 1. Identify which string
+	playStringIdentifier(result->detected_string);
+	
+	// 2. Play reference tone for that string
+	printf("[REFERENCE] Playing target note: %s\n", 
+	       getStringNote(result->target_string));
+	playGuitarString(result->target_string, 1000);
+	
+	// 3. Indicate how far off
+	playCentsIndicator(result->cents_offset);
+	
+	// 4. Show direction
+	playDirectionCue(result->direction);
+	
+	printf("=== FEEDBACK COMPLETE ===\n\n");
+}
+
+void playReferenceMode(int string_num) {
+	printf("\n[REFERENCE MODE] Playing string %d\n", string_num);
+	playGuitarString(string_num, 3000);  // Longer duration for practice
+}
+
+void tuningAssistantMode(int string_num) {
+	current_string = string_num;
+	
+	printf("\n=== TUNING ASSISTANT MODE ===\n");
+	printf("Target string: %d (%s)\n", string_num, getStringNote(string_num));
+	
+	// Play reference tone
+	printf("Playing reference tone...\n");
+	playGuitarString(string_num, 2000);
+	
+	printf("Now play your string and listen for feedback beeps\n");
+	printf("Faster beeps = further from tune\n");
+	printf("Slower beeps = closer to tune\n");
+	printf("No beeps = in tune!\n");
+	printf("================================\n\n");
+}
+
+/* ============================================================================
+ * ORIGINAL FUNCTIONS (Maintained for Compatibility)
+ * ========================================================================== */
+
 uint32_t calculate_beep_interval(double cents_offset) {
 	double abs_cents = fabs(cents_offset);
 	
-	/* Find the appropriate beep rate for this offset */
 	for (int i = 0; i < NUM_BEEP_RATES; i++) {
 		if (abs_cents >= beep_rates[i].max_cents) {
 			return beep_rates[i].beep_interval;
 		}
 	}
 	
-	/* Fallback (should not reach here) */
 	return 0;
 }
 
-/**
- * Generate dynamic beep feedback based on tuning accuracy
- * 
- * Implements the user's requirement:
- * - Further from tune: faster beeping
- * - Closer to tune: slower beeping
- * - In tune (< 5 cents): no beeping
- * 
- * @param result: Current tuning result with cents_offset
- */
 void generate_dynamic_beep_feedback(const TuningResult* result) {
 	if (result == NULL) {
 		beeping_active = 0;
@@ -92,13 +293,12 @@ void generate_dynamic_beep_feedback(const TuningResult* result) {
 	uint32_t beep_interval = calculate_beep_interval(result->cents_offset);
 	
 	if (beep_interval == 0) {
-		/* In tune - stop beeping */
 		beeping_active = 0;
 		printf("[BEEP] In tune! No beeping.\n");
 	} else {
 		beeping_active = 1;
-		last_beep_time = 0;  /* Force immediate first beep */
-		printf("[BEEP] Starting dynamic beeps at %ld ms interval (offset: %.1f cents)\n", 
+		last_beep_time = 0;
+		printf("[BEEP] Starting beeps at %lu ms interval (offset: %.1f cents)\n", 
 		       beep_interval, result->cents_offset);
 	}
 	
@@ -106,88 +306,47 @@ void generate_dynamic_beep_feedback(const TuningResult* result) {
 }
 
 void audio_sequencer_init(void) {
-	printf("Audio sequencer initialized.\n");
-	printf("  - Static feedback mode: generate_audio_feedback()\n");
-	printf("  - Dynamic beep mode: generate_dynamic_beep_feedback()\n");
+	printf("Audio Sequencer V2 initialized (CFugue-style notation)\n");
+	printf("  - Synthesized audio mode (NO WAV FILES NEEDED)\n");
+	printf("  - CFugue-style note notation support\n");
+	printf("  - Dynamic beep feedback\n");
+	
+	// Initialize note parser
+	note_parser_init();
+	
 	is_playing = 0;
 	playback_step = 0;
 	beeping_active = 0;
 	last_beep_time = 0;
 	beep_end_time = 0;
-}
-
-void play_audio_file(const char* filename) {
-	printf("[AUDIO] Playing: %s\n", filename);
-}
-
-const char* get_string_filename(int string_num) {
-	switch (string_num) {
-		case 1: return FILE_E;
-		case 2: return FILE_B;
-		case 3: return FILE_G;
-		case 4: return FILE_D;
-		case 5: return FILE_A;
-		case 6: return FILE_E;
-		default: return NULL;
-	}
-}
-
-const char* get_cents_filename(double cents) {
-	double abs_cents = fabs(cents);
-	if (abs_cents < 5) {
-		return NULL;
-	} else if (abs_cents < 15) {
-		return FILE_10_CENTS;
-	} else if (abs_cents < 25) {
-		return FILE_20_CENTS;
-	} else {
-		return FILE_20_CENTS;
-	}
+	current_string = 1;
 }
 
 void generate_audio_feedback(const TuningResult* result) {
-	printf("Generating audio feedback...\n");
-	current_result = result;
-	is_playing = 1;
-	playback_step = 0;
+	// Use new synthesized feedback instead
+	generate_synthesized_feedback(result);
 }
 
 void audio_sequencer_update(void) {
+	// Legacy function - kept for compatibility
 	if (!is_playing || current_result == NULL) {
 		return;
 	}
+	
+	// Original playback sequence (now uses synthesis)
 	switch (playback_step) {
-		case 0: {
-			const char* string_file = get_string_filename(current_result->detected_string);
-			if (string_file) {
-				play_audio_file(string_file);
-			}
+		case 0:
+			playStringIdentifier(current_result->detected_string);
 			playback_step++;
 			break;
-		}
 		case 1:
 			if (strcmp(current_result->direction, "IN_TUNE") != 0) {
-				const char* cents_file = get_cents_filename(current_result->cents_offset);
-				if (cents_file) {
-					play_audio_file(cents_file);
-				}
+				playCentsIndicator(current_result->cents_offset);
 			}
 			playback_step++;
 			break;
 		case 2:
-			if (strcmp(current_result->direction, "IN_TUNE") != 0) {
-				const char* direction_file = NULL;
-				if (strcmp(current_result->direction, "UP") == 0) {
-					direction_file = FILE_UP;
-				} else if (strcmp(current_result->direction, "DOWN") == 0) {
-					direction_file = FILE_DOWN;
-				}
-				if (direction_file) {
-					play_audio_file(direction_file);
-				}
-			} else {
-				play_audio_file(FILE_IN_TUNE);
-			}
+			playDirectionCue(current_result->direction);
 			playback_step++;
 			break;
 		default:
@@ -198,22 +357,6 @@ void audio_sequencer_update(void) {
 	}
 }
 
-/**
- * Update dynamic beep feedback based on current time
- * 
- * Call this frequently (e.g., every 10-50 ms) in your main loop
- * to maintain accurate beep timing.
- * 
- * @param current_time_ms: Current system time in milliseconds
- * 
- * Example usage in main loop:
- *   static uint32_t last_ms = 0;
- *   uint32_t now = millis();
- *   if (now >= last_ms + 10) {
- *       audio_sequencer_update_beeps(now);
- *       last_ms = now;
- *   }
- */
 void audio_sequencer_update_beeps(uint32_t current_time_ms) {
 	if (!beeping_active || current_result == NULL) {
 		return;
@@ -222,16 +365,14 @@ void audio_sequencer_update_beeps(uint32_t current_time_ms) {
 	uint32_t beep_interval = calculate_beep_interval(current_result->cents_offset);
 	
 	if (beep_interval == 0) {
-		/* Tuning changed to in-tune, stop beeping */
 		beeping_active = 0;
 		return;
 	}
 	
-	/* Check if it's time for a new beep */
 	if (current_time_ms >= last_beep_time + beep_interval) {
-		/* Time to beep! */
-		printf("[BEEP]\n");  /* Placeholder - actual implementation would call tone/beep hardware */
+		// Time to beep!
+		teensy_play_beep(800.0f, 50);  // 800 Hz beep, 50ms duration
 		last_beep_time = current_time_ms;
-		beep_end_time = current_time_ms + 50;  /* Beep duration: 50 ms */
+		beep_end_time = current_time_ms + 50;
 	}
 }

@@ -202,7 +202,7 @@ void apply_gain(int16_t* samples, int num_samples, float gain_factor) {
  * EXAMPLE:
  * - If A2 string (110 Hz) is played:
  *   - FFT creates peaks in magnitude spectrum
- *   - Peak magnitude at bin ~3 (because 3 * 39 Hz/bin ≈ 117 Hz)
+ *   - Peak magnitude at bin ~3 (because 3 * 39 Hz/bin ~= 117 Hz)
  *   - This function finds bin 3, converts to frequency 110 Hz
  * 
  * @param magnitude: Array of magnitude values for each frequency bin (output of FFT)
@@ -235,7 +235,7 @@ static double find_peak_frequency(const float *magnitude, uint32_t num_bins, uin
 	}
 	
 	/* Convert bin index to frequency using: freq = bin_index * (sample_rate / FFT_size)
-	   EXAMPLE: bin 3 -> frequency = 3 * (10000 / 256) = 3 * 39.06 Hz = 117 Hz ≈ A2 */
+	   EXAMPLE: bin 3 -> frequency = 3 * (10000 / 256) = 3 * 39.06 Hz = 117 Hz ~= A2 */
 	double frequency = (double)peak_bin * sampling_rate / FFT_SIZE;
 	
 	return frequency;
@@ -272,18 +272,18 @@ static double find_peak_frequency(const float *magnitude, uint32_t num_bins, uin
  * 
  * EXAMPLE FLOW:
  *    Input: 1024 audio samples of A2 string (110 Hz)
- *         ↓
+ *         (down)
  *    Remove DC offset (subtract mean)
- *         ↓
+ *         (down)
  *    Apply gain normalization
- *         ↓
+ *         (down)
  *    arm_rfft_f32() - real FFT computation
- *         ↓
+ *         (down)
  *    Compute magnitudes: |X(0)|, |X(1)|, |X(2)|, |X(3)|, ...
- *    Where |X(3)| is highest because bin 3 ≈ 117 Hz ≈ A2
- *         ↓
+ *    Where |X(3)| is highest because bin 3 ~= 117 Hz ~= A2
+ *         (down)
  *    find_peak_frequency() finds bin 3, converts to 110 Hz
- *         ↓
+ *         (down)
  *    Output: 110.0 Hz
  * 
  * @param samples: Array of audio samples in int16_t PCM format
@@ -367,10 +367,10 @@ double apply_fft(const int16_t* samples, int num_samples) {
 	   - Bin 0: DC component (0 Hz)
 	   - Bin 1: 39 Hz
 	   - Bin 2: 78 Hz
-	   - Bin 3: 117 Hz ← A2 string (110 Hz) - HIGHEST MAGNITUDE HERE
+	   - Bin 3: 117 Hz ? A2 string (110 Hz) - HIGHEST MAGNITUDE HERE
 	   - Bin 4: 156 Hz
 	   - Bin 5: 195 Hz
-	   - Bin 8: 312 Hz ← E4 string (330 Hz) */
+	   - Bin 8: 312 Hz ? E4 string (330 Hz) */
 	uint32_t num_bins = FFT_SIZE / 2;
 	
 	/* Compute magnitude for all bins */

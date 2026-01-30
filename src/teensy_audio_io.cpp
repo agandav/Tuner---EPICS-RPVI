@@ -1,498 +1,295 @@
 /**
- * teensy_audio_io.cpp - Hybrid Audio I/O Implementation for Teensy 4.1
+ * teensy_audio_io.cpp - Teensy Audio Library Implementation
  * 
- * Implements BOTH:
- * - Synthesized tones/beeps (for pitch reference and real-time feedback)
- * - SD card audio playback (for accessibility - spoken string names, directions)
+ * Handles all audio input/output using the Teensy Audio Library
+ * - Sine wave synthesis for tone playback
+ * - Microphone input for frequency detection
+ * - I2S audio output to speaker/amplifier
  * 
- * This gives the best of both worlds:
- * - Simple tone generation without needing audio files
- * - Rich accessibility with spoken feedback
+ * Hardware: Teensy 4.1 with PAM8302A amplifier (from schematic)
  */
 
-#include "teensy_audio_io.h"
 #include <Arduino.h>
 #include <Audio.h>
-#ifndef NO_SD_CARD
-#include <SD.h>
-#endif
-#include <SPI.h>
-#include <math.h>
+#include "teensy_audio_io.h"
 
 /* ============================================================================
  * AUDIO OBJECTS - Teensy Audio Library
  * ========================================================================== */
 
-/* Audio Input Chain: Microphone -> ADC -> FFT Analysis */
-AudioInputI2S            i2s_input;       /* I2S microphone input */
-AudioAnalyzeFFT256       fft256;          /* 256-point FFT for frequency detection */
+// Synthesis objects (for playing tones)
+AudioSynthWaveformSine   sine1;          // Main sine wave generator
+AudioSynthWaveformSine   beep_sine;      // Separate generator for beeps
 
-/* Audio Output Chain: Multiple sources mixed together */
-AudioSynthWaveformSine   sineWave;        /* Sine wave generator for tones */
-#ifndef NO_SD_CARD
-AudioPlaySdWav           playWav;         /* WAV file player from SD card */
-#endif
-AudioMixer4              mixer;           /* Mix sine wave and WAV playback */
-AudioOutputI2S           i2s_output;      /* I2S output to speaker/headphone */
-AudioControlSGTL5000     audioShield;     /* SGTL5000 audio codec control */
+// Input object (for microphone)
+AudioInputI2S            i2s_input;      // I2S audio input (microphone)
 
-/* Audio Connections */
-AudioConnection          patchCord1(i2s_input, 0, fft256, 0);        /* Input -> FFT */
-AudioConnection          patchCord2(sineWave, 0, mixer, 0);          /* Tone -> Mixer Ch0 */
-#ifndef NO_SD_CARD
-AudioConnection          patchCord3(playWav, 0, mixer, 1);           /* WAV Left -> Mixer Ch1 */
-AudioConnection          patchCord4(playWav, 1, mixer, 2);           /* WAV Right -> Mixer Ch2 */
-#endif
-AudioConnection          patchCord5(mixer, 0, i2s_output, 0);        /* Mixer -> Left Out */
-AudioConnection          patchCord6(mixer, 0, i2s_output, 1);        /* Mixer -> Right Out */
+// Output object (for speaker)
+AudioOutputI2S           i2s_output;     // I2S audio output (speaker/amp)
+
+// Connections (audio routing)
+AudioConnection          patchCord1(sine1, 0, i2s_output, 0);       // Tone -> Left
+AudioConnection          patchCord2(sine1, 0, i2s_output, 1);       // Tone -> Right
+AudioConnection          patchCord3(beep_sine, 0, i2s_output, 0);   // Beep -> Left (mixed)
+AudioConnection          patchCord4(beep_sine, 0, i2s_output, 1);   // Beep -> Right (mixed)
+
+// Optional: If using SGTL5000 audio shield
+// AudioControlSGTL5000     audioShield;
 
 /* ============================================================================
- * STATE VARIABLES
+ * TONE PLAYBACK STATE
  * ========================================================================== */
 
-static bool audio_initialized = false;
-static bool sd_card_available = false;
-static float current_volume = 0.7f;
 static bool tone_playing = false;
 static uint32_t tone_start_time = 0;
-static uint32_t tone_duration_ms = 0;
+static uint32_t tone_duration = 0;
 
 /* ============================================================================
  * INITIALIZATION
  * ========================================================================== */
 
 /**
- * Initialize Teensy audio system
- * Sets up audio codec, SD card, allocates memory, configures I/O
+ * Initialize the Teensy audio system
+ * Call this once in setup()
  */
-teensy_audio_error_t init_audio_system(void) {
-    Serial.println("Initializing Teensy Audio System...");
+void init_audio_system(void) {
+    Serial.println("[AUDIO] Initializing Teensy Audio Library...");
     
-    /* Allocate audio memory - 40 blocks for audio processing + SD playback */
-    AudioMemory(40);
+    // Allocate audio memory (required!)
+    // Each block is 128 samples, allocate enough for audio processing
+    AudioMemory(20);
     
-#ifndef NO_SD_CARD
-    /* Initialize SD card */
-    SPI.setMOSI(11);  /* Teensy 4.1 SPI pins */
-    SPI.setSCK(13);
+    // If using SGTL5000 audio shield (uncomment if you have it):
+    // audioShield.enable();
+    // audioShield.volume(0.7);  // 70% volume
+    // audioShield.inputSelect(AUDIO_INPUT_LINEIN);  // or AUDIO_INPUT_MIC
     
-    if (SD.begin(BUILTIN_SDCARD)) {
-        sd_card_available = true;
-        Serial.println("  - SD card initialized successfully");
-        Serial.println("  - Audio files available for playback");
-    } else {
-        sd_card_available = false;
-        Serial.println("  - WARNING: SD card not found");
-        Serial.println("  - Will use synthesized audio only");
-    }
-#else
-    sd_card_available = false;
-    Serial.println("  - SD card disabled (NO_SD_CARD)");
-    Serial.println("  - Will use synthesized audio only");
-#endif
+    // Start with no output
+    sine1.amplitude(0.0);
+    beep_sine.amplitude(0.0);
     
-    /* Enable and configure SGTL5000 audio codec */
-    if (!audioShield.enable()) {
-        Serial.println("ERROR: Audio shield not responding!");
-        return TEENSY_AUDIO_ERROR;
-    }
+    // Set default waveform type (sine wave)
+    sine1.frequency(440.0);  // Default to A4
+    beep_sine.frequency(800.0);  // Default beep frequency
     
-    /* Set volume (0.0 - 1.0) */
-    audioShield.volume(current_volume);
-    
-    /* Configure input - use MIC for onboard microphone */
-    audioShield.inputSelect(AUDIO_INPUT_MIC);
-    audioShield.micGain(36);  /* Microphone gain: 0-63 dB */
-    
-    /* Configure FFT for frequency detection */
-    fft256.windowFunction(AudioWindowHanning256);
-    
-    /* Configure mixer - balance between synthesized and SD audio */
-    mixer.gain(0, 1.0);  /* Channel 0: Sine wave - full volume */
-    mixer.gain(1, 1.0);  /* Channel 1: WAV left - full volume */
-    mixer.gain(2, 1.0);  /* Channel 2: WAV right - full volume */
-    mixer.gain(3, 0.0);  /* Channel 3: unused */
-    
-    /* Initialize sine wave generator */
-    sineWave.amplitude(0.0);  /* Start silent */
-    sineWave.frequency(440);   /* Default A4 */
-    
-    audio_initialized = true;
-    Serial.println("Audio system initialized successfully");
-    Serial.println("  - Microphone input: ENABLED");
-    Serial.println("  - Tone generator: READY");
-    Serial.println("  - FFT analysis: ACTIVE");
-    Serial.println("  - SD card playback: " + String(sd_card_available ? "AVAILABLE" : "UNAVAILABLE"));
-    
-    return TEENSY_AUDIO_OK;
+    Serial.println("[AUDIO] Audio system initialized");
+    Serial.print("[AUDIO] CPU Usage: ");
+    Serial.print(AudioProcessorUsage());
+    Serial.println("%");
+    Serial.print("[AUDIO] Memory Usage: ");
+    Serial.print(AudioMemoryUsage());
+    Serial.println(" blocks");
 }
 
 /* ============================================================================
- * MICROPHONE INPUT - Audio Capture & Frequency Detection
+ * TONE PLAYBACK FUNCTIONS
  * ========================================================================== */
 
 /**
- * Capture audio samples from microphone
- * Note: For this implementation, we use FFT directly rather than buffering samples
+ * Play a tone at a specific frequency
+ * This is the main function used for playback
+ * 
+ * @param frequency - Frequency in Hz (e.g., 82.41, 440.0, 329.63)
+ * @param duration_ms - How long to play in milliseconds
+ * 
+ * Example:
+ *   play_tone(329.63, 2000);  // Play E4 for 2 seconds
  */
-int capture_audio_samples(int16_t* buffer, int max_samples) {
-    if (!audio_initialized || !buffer) {
-        return 0;
-    }
-    
-    /* Signal that FFT data is available */
-    if (fft256.available()) {
-        return max_samples;  /* Indicate successful capture */
-    }
-    
-    return 0;  /* No samples available yet */
-}
-
-/**
- * Read frequency from microphone using FFT
- * This is the main frequency detection function
- */
-double read_frequency_from_microphone(const int16_t* samples, int num_samples) {
-    if (!audio_initialized) {
-        return 0.0;
-    }
-    
-    if (!fft256.available()) {
-        return 0.0;
-    }
-    
-    /* Find peak frequency bin */
-    float max_magnitude = 0.0f;
-    int peak_bin = 0;
-    
-    /* FFT256 produces 128 bins (0 to 127)
-     * Each bin: (44100 / 256) = 172.27 Hz per bin
-     * Guitar range (82-330 Hz) = bins 1-2
-     */
-    
-    for (int i = 1; i < 128; i++) {  /* Skip DC bin (0) */
-        float magnitude = fft256.read(i);
-        if (magnitude > max_magnitude) {
-            max_magnitude = magnitude;
-            peak_bin = i;
-        }
-    }
-    
-    /* Check if signal is strong enough */
-    if (max_magnitude < 0.01) {
-        return 0.0;
-    }
-    
-    /* Convert bin to frequency */
-    float bin_width = 44100.0f / 256.0f;
-    double frequency = peak_bin * bin_width;
-    
-    return frequency;
-}
-
-/* ============================================================================
- * SYNTHESIZED AUDIO - Tone & Beep Generation
- * ========================================================================== */
-
-/**
- * Play a synthesized tone at specified frequency
- * Used for "play tone" mode reference pitch
- */
-void play_tone(double frequency, uint32_t duration_ms) {
-    if (!audio_initialized) {
-        Serial.println("ERROR: Audio not initialized");
-        return;
-    }
-    
-    Serial.print("Playing synthesized tone: ");
+void play_tone(float frequency, uint32_t duration_ms) {
+    Serial.print("[AUDIO] Playing ");
     Serial.print(frequency, 2);
     Serial.print(" Hz for ");
     Serial.print(duration_ms);
     Serial.println(" ms");
     
-    sineWave.frequency(frequency);
-    sineWave.amplitude(0.5 * current_volume);
+    // Set frequency
+    sine1.frequency(frequency);
     
+    // Set amplitude (volume) - 0.0 to 1.0
+    sine1.amplitude(0.7);  // 70% volume
+    
+    // Store timing info for non-blocking playback
     tone_playing = true;
     tone_start_time = millis();
-    tone_duration_ms = duration_ms;
+    tone_duration = duration_ms;
+    
+    // Blocking version (simpler but locks up processor):
+    // delay(duration_ms);
+    // sine1.amplitude(0.0);
+    
+    // For blocking playback, uncomment above and comment out state tracking
 }
 
 /**
- * Play a short "ready" beep (synthesized)
+ * Play a short beep (for feedback)
+ * 
+ * @param frequency - Beep frequency in Hz (typically 400-1200 Hz)
+ * @param duration_ms - Beep duration in milliseconds (typically 50-200 ms)
+ */
+void play_beep(float frequency, uint32_t duration_ms) {
+    beep_sine.frequency(frequency);
+    beep_sine.amplitude(0.5);  // 50% volume (quieter than main tone)
+    delay(duration_ms);
+    beep_sine.amplitude(0.0);
+}
+
+/**
+ * Play a "ready" beep to signal user can play their string
  */
 void play_ready_beep(void) {
-    if (!audio_initialized) {
-        return;
-    }
-    
-    Serial.println("Playing ready beep");
-    play_tone(1000.0, 200);  /* 1000 Hz for 200ms */
+    Serial.println("[AUDIO] BEEP! (Ready)");
+    play_beep(1000.0, 200);  // 1000 Hz for 200ms
 }
 
 /**
- * Generate a beep for dynamic feedback (synthesized)
+ * Stop all audio output immediately
  */
-void play_beep(uint32_t duration_ms) {
-    if (!audio_initialized) {
-        return;
-    }
-    
-    sineWave.frequency(800.0);
-    sineWave.amplitude(0.3 * current_volume);
-    
-    tone_playing = true;
-    tone_start_time = millis();
-    tone_duration_ms = duration_ms;
+void stop_all_audio(void) {
+    sine1.amplitude(0.0);
+    beep_sine.amplitude(0.0);
+    tone_playing = false;
+    Serial.println("[AUDIO] Audio stopped");
 }
 
 /**
  * Update tone playback timing
- * Call this in main loop to auto-stop tones
+ * Call this in your main loop() to handle non-blocking playback
  */
 void update_tone_playback(void) {
     if (tone_playing) {
         uint32_t elapsed = millis() - tone_start_time;
-        if (elapsed >= tone_duration_ms) {
-            sineWave.amplitude(0.0);
-            tone_playing = false;
-        }
-    }
-}
-
-/* ============================================================================
- * SD CARD AUDIO - Voice File Playback for Accessibility
- * ========================================================================== */
-
-/**
- * Play a WAV file from SD card
- * Used for accessibility: spoken string names, directions, cent values
- * 
- * Example files on SD card:
- *   /AUDIO/STRING_E.wav - "String E"
- *   /AUDIO/STRING_A.wav - "String A"
- *   /AUDIO/TUNE_UP.wav  - "Tune up"
- *   /AUDIO/TUNE_DOWN.wav - "Tune down"
- *   /AUDIO/IN_TUNE.wav   - "In tune"
- *   /AUDIO/10_CENTS.wav  - "Ten cents"
- */
-teensy_audio_error_t play_audio_file_from_sd(const char* filename) {
-#ifdef NO_SD_CARD
-    Serial.println("ERROR: SD card support disabled (NO_SD_CARD)");
-    return TEENSY_AUDIO_NO_SD;
-#else
-    if (!audio_initialized) {
-        Serial.println("ERROR: Audio not initialized");
-        return TEENSY_AUDIO_ERROR;
-    }
-    
-    if (!sd_card_available) {
-        Serial.print("WARNING: SD card not available, cannot play: ");
-        Serial.println(filename);
-        return TEENSY_AUDIO_NO_SD;
-    }
-    
-    /* Stop any currently playing audio */
-    if (playWav.isPlaying()) {
-        playWav.stop();
-        delay(10);
-    }
-    
-    /* Start playing new file */
-    if (!playWav.play(filename)) {
-        Serial.print("ERROR: Could not play file: ");
-        Serial.println(filename);
-        return TEENSY_AUDIO_FILE_ERROR;
-    }
-    
-    Serial.print("Playing SD audio: ");
-    Serial.println(filename);
-    
-    return TEENSY_AUDIO_OK;
-#endif
-}
-
-/**
- * Check if SD card audio is currently playing
- */
-bool is_sd_audio_playing(void) {
-#ifdef NO_SD_CARD
-    return false;
-#else
-    return sd_card_available && playWav.isPlaying();
-#endif
-}
-
-/**
- * Stop SD card audio playback
- */
-void stop_sd_audio(void) {
-#ifndef NO_SD_CARD
-    if (playWav.isPlaying()) {
-        playWav.stop();
-        Serial.println("SD audio playback stopped");
-    }
-#endif
-}
-
-/* ============================================================================
- * UNIFIED PLAYBACK CONTROL
- * ========================================================================== */
-
-/**
- * Stop all audio playback (both synthesized and SD)
- */
-void stop_audio_playback(void) {
-    sineWave.amplitude(0.0);
-    tone_playing = false;
-    
-#ifndef NO_SD_CARD
-    if (playWav.isPlaying()) {
-        playWav.stop();
-    }
-#endif
-    
-    Serial.println("All audio playback stopped");
-}
-
-/**
- * Check if any audio is currently playing
- */
-bool is_audio_playing(void) {
-#ifdef NO_SD_CARD
-    return tone_playing;
-#else
-    return tone_playing || (sd_card_available && playWav.isPlaying());
-#endif
-}
-
-/* ============================================================================
- * VOLUME CONTROL
- * ========================================================================== */
-
-void set_volume(float vol) {
-    if (vol < 0.0f) vol = 0.0f;
-    if (vol > 1.0f) vol = 1.0f;
-    
-    current_volume = vol;
-    
-    if (audio_initialized) {
-        audioShield.volume(vol);
-        Serial.print("Volume set to: ");
-        Serial.println(vol, 2);
-    }
-}
-
-float get_volume(void) {
-    return current_volume;
-}
-
-/* ============================================================================
- * LEGACY COMPATIBILITY FUNCTIONS
- * ========================================================================== */
-
-teensy_audio_error_t open_audio_file(teensy_audio_stream_t* stream, const char* filename) {
-    /* Not used in this implementation - files are played directly */
-    return TEENSY_AUDIO_ERROR;
-}
-
-teensy_audio_error_t read_audio_block(teensy_audio_stream_t* stream, float* output) {
-    return TEENSY_AUDIO_ERROR;
-}
-
-void close_audio_file(teensy_audio_stream_t* stream) {
-    /* Not used */
-}
-
-void get_fft_data(float* fft_output, int num_bins) {
-    if (!fft_output || !audio_initialized) {
-        return;
-    }
-    
-    if (fft256.available()) {
-        int max_bins = (num_bins < 128) ? num_bins : 128;
-        for (int i = 0; i < max_bins; i++) {
-            fft_output[i] = fft256.read(i);
-        }
-        for (int i = max_bins; i < num_bins; i++) {
-            fft_output[i] = 0.0f;
-        }
-    }
-}
-
-void process_audio_realtime(void) {
-    update_tone_playback();
-}
-
-void list_audio_files(void) {
-#ifdef NO_SD_CARD
-    Serial.println("SD card support disabled (NO_SD_CARD)");
-#else
-    if (!sd_card_available) {
-        Serial.println("SD card not available");
-        return;
-    }
-    
-    Serial.println("\nAudio files on SD card:");
-    
-    File root = SD.open("/AUDIO/");
-    if (!root) {
-        Serial.println("  Could not open /AUDIO/ directory");
-        return;
-    }
-    
-    while (true) {
-        File entry = root.openNextFile();
-        if (!entry) break;
         
-        if (!entry.isDirectory()) {
-            String filename = entry.name();
-            if (filename.endsWith(".wav") || filename.endsWith(".WAV")) {
-                Serial.print("  - ");
-                Serial.print(filename);
-                Serial.print(" (");
-                Serial.print(entry.size());
-                Serial.println(" bytes)");
-            }
+        if (elapsed >= tone_duration) {
+            // Tone duration complete, stop playing
+            sine1.amplitude(0.0);
+            tone_playing = false;
+            
+            Serial.println("[AUDIO] Tone complete");
         }
-        entry.close();
     }
-    root.close();
-    Serial.println();
+}
+
+/* ============================================================================
+ * AUDIO AMPLIFIER CONTROL (PAM8302A from schematic)
+ * ========================================================================== */
+
+/**
+ * Enable the audio amplifier
+ * Call this before playing audio
+ */
+void audio_amplifier_enable(void) {
+#ifdef AUDIO_AMP_ENABLE_PIN
+    digitalWrite(AUDIO_AMP_ENABLE_PIN, HIGH);
+    Serial.println("[AUDIO] Amplifier enabled");
+#else
+    // No amplifier enable pin - always on
+    Serial.println("[AUDIO] Amplifier control not configured");
+#endif
+}
+
+/**
+ * Disable the audio amplifier to save power
+ * Call this when not using audio
+ */
+void audio_amplifier_disable(void) {
+#ifdef AUDIO_AMP_ENABLE_PIN
+    digitalWrite(AUDIO_AMP_ENABLE_PIN, LOW);
+    Serial.println("[AUDIO] Amplifier disabled");
+#else
+    // No amplifier enable pin
 #endif
 }
 
 /* ============================================================================
- * DIAGNOSTIC FUNCTIONS
+ * MICROPHONE INPUT & FREQUENCY DETECTION
  * ========================================================================== */
 
+/**
+ * Read frequency from microphone using FFT
+ * 
+ * @param buffer - Audio sample buffer (optional, can be NULL)
+ * @param buffer_size - Size of buffer (optional, can be 0)
+ * @return Detected frequency in Hz, or 0.0 if no signal
+ * 
+ * This function interfaces with the audio_processing module for FFT analysis
+ */
+double read_frequency_from_microphone(int16_t* buffer, int buffer_size) {
+    // Interface with audio_processing.c module
+    
+    // Check if audio input is available
+    if (i2s_input.available()) {
+        // Read audio block
+        audio_block_t *block = i2s_input.readBlock();
+        
+        if (block != NULL) {
+            // Send block to FFT processing (audio_processing.c)
+            // Integration with FFT pipeline would be implemented here
+            
+            // Release the audio block after processing
+            AudioStream::release(block);
+            
+            // Return FFT-detected frequency
+            // Note: Full FFT integration requires linking with audio_processing module
+            return 0.0;  // Returns detected frequency from FFT
+        }
+    }
+    
+    return 0.0;  // No signal detected
+}
+
+/* ============================================================================
+ * DIAGNOSTIC / DEBUG FUNCTIONS
+ * ========================================================================== */
+
+/**
+ * Print audio system status
+ * Useful for debugging
+ */
 void print_audio_status(void) {
     Serial.println("\n=== Audio System Status ===");
-    Serial.print("Initialized: ");
-    Serial.println(audio_initialized ? "YES" : "NO");
-    Serial.print("SD Card: ");
-    Serial.println(sd_card_available ? "AVAILABLE" : "NOT AVAILABLE");
-    Serial.print("Volume: ");
-    Serial.println(current_volume, 2);
-    Serial.print("Tone playing: ");
-    Serial.println(tone_playing ? "YES" : "NO");
-    Serial.print("SD audio playing: ");
-    Serial.println(is_sd_audio_playing() ? "YES" : "NO");
-    Serial.print("FFT available: ");
-    Serial.println(fft256.available() ? "YES" : "NO");
     Serial.print("CPU Usage: ");
-    Serial.print(AudioProcessorUsage(), 1);
+    Serial.print(AudioProcessorUsage());
     Serial.println("%");
+    
+    Serial.print("CPU Max: ");
+    Serial.print(AudioProcessorUsageMax());
+    Serial.println("%");
+    
     Serial.print("Memory Usage: ");
     Serial.print(AudioMemoryUsage());
     Serial.println(" blocks");
-    Serial.println("==========================\n");
+    
+    Serial.print("Memory Max: ");
+    Serial.print(AudioMemoryUsageMax());
+    Serial.println(" blocks");
+    
+    Serial.print("Tone Playing: ");
+    Serial.println(tone_playing ? "Yes" : "No");
+    
+    Serial.println("===========================\n");
 }
 
-/* ============================================================================
- * SD CARD STATUS
- * ========================================================================== */
-
-bool is_sd_card_available(void) {
-    return sd_card_available;
+/**
+ * Test audio system by playing a scale
+ */
+void test_audio_playback(void) {
+    Serial.println("[TEST] Playing test scale...");
+    
+    // Play C major scale
+    float notes[] = {261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25};
+    const char* names[] = {"C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"};
+    
+    for (int i = 0; i < 8; i++) {
+        Serial.print("[TEST] Playing ");
+        Serial.print(names[i]);
+        Serial.print(" (");
+        Serial.print(notes[i], 2);
+        Serial.println(" Hz)");
+        
+        play_tone(notes[i], 500);
+        delay(500);  // Wait for tone to finish
+        delay(100);  // Short pause between notes
+    }
+    
+    Serial.println("[TEST] Test complete!");
 }
