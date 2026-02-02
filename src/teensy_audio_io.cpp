@@ -10,7 +10,11 @@
  */
 
 #include <Arduino.h>
-#include <Audio.h>
+// Include only the specific Audio library components we need (not Audio.h which includes SD card headers)
+#include <AudioStream.h>
+#include <synth_sine.h>
+#include <input_i2s.h>
+#include <output_i2s.h>
 #include "teensy_audio_io.h"
 
 /* ============================================================================
