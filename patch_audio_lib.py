@@ -1,75 +1,70 @@
 """
-PlatformIO extra script to patch Audio library for NO_SD_CARD support
-This script runs before building and adds conditional compilation guards
-to exclude SD card functionality when NO_SD_CARD is defined.
+Patch Audio library SD files to compile without SD library
+This script runs after library installation to disable SD-dependent code
 """
-
-Import("env")  # type: ignore  # Provided by PlatformIO SCons
+Import("env")
 import os
+import shutil
 
 def patch_audio_library(source, target, env):
-    """Patch Audio library files to support NO_SD_CARD"""
+    """Patch Audio library SD files to be NO_SD_CARD compatible"""
     
-    # Path to Audio library
-    audio_lib_path = os.path.join(env.subst("$PROJECT_LIBDEPS_DIR"), "teensy41", "Audio")
+    # Find Audio library directory
+    audio_lib_dir = None
+    for lib_dir in env.get("CPPPATH", []):
+        if "Audio" in lib_dir and "libdeps" in lib_dir:
+            audio_lib_dir = os.path.dirname(lib_dir)
+            break
     
-    if not os.path.exists(audio_lib_path):
-        print("Audio library not found yet, will patch on next build")
+    if not audio_lib_dir or not os.path.exists(audio_lib_dir):
+        print("[PATCH] Audio library not found, skipping patch")
         return
     
-    # Files to patch
-    files_to_patch = {
-        "Audio.h": {
-            "search": '#include "play_memory.h"\n#include "play_queue.h"\n#include "play_sd_raw.h"\n#include "play_sd_wav.h"\n#include "play_serialflash_raw.h"',
-            "replace": '#include "play_memory.h"\n#include "play_queue.h"\n#ifndef NO_SD_CARD\n#include "play_sd_raw.h"\n#include "play_sd_wav.h"\n#endif\n#include "play_serialflash_raw.h"'
-        },
-        "play_sd_raw.cpp": {
-            "search": "#include <Arduino.h>\n#include \"play_sd_raw.h\"\n#include \"spi_interrupt.h\"",
-            "replace": "#ifndef NO_SD_CARD\n\n#include <Arduino.h>\n#include \"play_sd_raw.h\"\n#include \"spi_interrupt.h\"",
-            "end_search": "return ((uint64_t)file_size * B2M) >> 32;\n}",
-            "end_replace": "return ((uint64_t)file_size * B2M) >> 32;\n}\n\n#endif // NO_SD_CARD"
-        },
-        "play_sd_wav.cpp": {
-            "search": "#include <Arduino.h>\n#include \"play_sd_wav.h\"\n#include \"spi_interrupt.h\"",
-            "replace": "#ifndef NO_SD_CARD\n\n#include <Arduino.h>\n#include \"play_sd_wav.h\"\n#include \"spi_interrupt.h\"",
-            "end_marker": True  # Will add #endif at end of file
-        }
-    }
+    print(f"[PATCH] Found Audio library at: {audio_lib_dir}")
     
-    for filename, patches in files_to_patch.items():
-        filepath = os.path.join(audio_lib_path, filename)
+    # Files to patch (wrap entire content in #ifndef NO_SD_CARD)
+    sd_files = [
+        "play_sd_raw.cpp",
+        "play_sd_wav.cpp",
+        "record_queue.cpp"
+    ]
+    
+    for filename in sd_files:
+        filepath = os.path.join(audio_lib_dir, filename)
+        
         if not os.path.exists(filepath):
             continue
-            
+        
+        # Check if already patched
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             content = f.read()
         
-        # Check if already patched
-        if "#ifndef NO_SD_CARD" in content and "NO_SD_CARD" in env.get("BUILD_FLAGS", []):
-            continue  # Already patched
+        if "#ifndef NO_SD_CARD" in content:
+            print(f"[PATCH] {filename} already patched, skipping")
+            continue
         
-        # Apply patches
-        modified = False
-        if "search" in patches and patches["search"] not in content:
-            # Not yet patched, apply patch
-            if patches["search"] in content.replace("#ifndef NO_SD_CARD\n", "").replace("#endif\n", ""):
-                content = content.replace(patches["search"], patches["replace"])
-                modified = True
+        # Create backup
+        backup_path = filepath + ".original"
+        if not os.path.exists(backup_path):
+            shutil.copy2(filepath, backup_path)
+            print(f"[PATCH] Backed up {filename}")
         
-        if "end_search" in patches and patches["end_search"] in content:
-            content = content.replace(patches["end_search"], patches["end_replace"])
-            modified = True
-        elif patches.get("end_marker"):
-            if not content.rstrip().endswith("#endif // NO_SD_CARD"):
-                content = content.rstrip() + "\n\n#endif // NO_SD_CARD\n"
-                modified = True
-        
-        if modified:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(content)
-            print(f"Patched {filename} for NO_SD_CARD support")
+        # Wrap content with NO_SD_CARD guard
+        patched_content = f"""// Patched by patch_audio_lib.py to support NO_SD_CARD builds
+#ifndef NO_SD_CARD
 
-# Register the patch function to run before build
-env.AddPreAction("$BUILD_DIR/src/main.cpp.o", patch_audio_library)
+{content}
 
-print("Audio library patch script loaded")
+#endif // NO_SD_CARD
+"""
+        
+        # Write patched file
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(patched_content)
+        
+        print(f"[PATCH] ✓ Patched {filename}")
+    
+    print("[PATCH] Audio library patching complete")
+
+# Run patch after library installation but before compilation
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_audio_library)

@@ -21,10 +21,10 @@ void assert_freq_equal(double detected, double expected, double tolerance, const
     double diff = fabs(detected - expected);
     if (diff <= tolerance) {
         passed_tests++;
-        printf("✓ PASS: %s (%.2f Hz, expected %.2f Hz, diff %.2f Hz)\n", 
+        printf("[PASS]: %s (%.2f Hz, expected %.2f Hz, diff %.2f Hz)\n", 
                test_name, detected, expected, diff);
     } else {
-        printf("✗ FAIL: %s (%.2f Hz, expected %.2f Hz, diff %.2f Hz)\n", 
+        printf("[FAIL]: %s (%.2f Hz, expected %.2f Hz, diff %.2f Hz)\n", 
                test_name, detected, expected, diff);
     }
 }
@@ -33,9 +33,9 @@ void assert_octave_equal(int detected, int expected, const char* test_name) {
     total_tests++;
     if (detected == expected) {
         passed_tests++;
-        printf("✓ PASS: %s (octave %d)\n", test_name, detected);
+        printf("[PASS]: %s (octave %d)\n", test_name, detected);
     } else {
-        printf("✗ FAIL: %s (got octave %d, expected %d)\n", test_name, detected, expected);
+        printf("[FAIL]: %s (got octave %d, expected %d)\n", test_name, detected, expected);
     }
 }
 
@@ -86,27 +86,27 @@ void run_validation_tests(void) {
     ButtonInput valid = {NOTE_A};
     if (is_valid_button_input(&valid)) {
         passed_tests++;
-        printf("✓ PASS: Valid input (A)\n");
+        printf("[PASS]: Valid input (A)\n");
     } else {
-        printf("✗ FAIL: Valid input rejected\n");
+        printf("[FAIL]: Valid input rejected\n");
     }
     
     total_tests++;
     ButtonInput invalid_note = {NOTE_NONE};
     if (!is_valid_button_input(&invalid_note)) {
         passed_tests++;
-        printf("✓ PASS: Invalid note rejected (NOTE_NONE)\n");
+        printf("[PASS]: Invalid note rejected (NOTE_NONE)\n");
     } else {
-        printf("✗ FAIL: Invalid note accepted\n");
+        printf("[FAIL]: Invalid note accepted\n");
     }
     
     total_tests++;
     ButtonInput boundary_g = {NOTE_G};
     if (is_valid_button_input(&boundary_g)) {
         passed_tests++;
-        printf("✓ PASS: Valid boundary note (G)\n");
+        printf("[PASS]: Valid boundary note (G)\n");
     } else {
-        printf("✗ FAIL: Valid boundary note rejected\n");
+        printf("[FAIL]: Valid boundary note rejected\n");
     }
 }
 
@@ -166,19 +166,19 @@ void run_octave_boundary_tests(void) {
     printf("========================================================\n\n");
     
     printf("Boundary between Octave 2 and 3 (164 Hz):\n");
-    assert_octave_equal(detect_octave_from_frequency(163.99), 2, "163.99 Hz → Octave 2");
-    assert_octave_equal(detect_octave_from_frequency(164.00), 3, "164.00 Hz → Octave 3");
-    assert_octave_equal(detect_octave_from_frequency(164.01), 3, "164.01 Hz → Octave 3");
+    assert_octave_equal(detect_octave_from_frequency(163.99), 2, "163.99 Hz -> Octave 2");
+    assert_octave_equal(detect_octave_from_frequency(164.00), 3, "164.00 Hz -> Octave 3");
+    assert_octave_equal(detect_octave_from_frequency(164.01), 3, "164.01 Hz -> Octave 3");
     
     printf("\nBoundary between Octave 3 and 4 (328 Hz):\n");
-    assert_octave_equal(detect_octave_from_frequency(327.99), 3, "327.99 Hz → Octave 3");
-    assert_octave_equal(detect_octave_from_frequency(328.00), 4, "328.00 Hz → Octave 4");
-    assert_octave_equal(detect_octave_from_frequency(328.01), 4, "328.01 Hz → Octave 4");
+    assert_octave_equal(detect_octave_from_frequency(327.99), 3, "327.99 Hz -> Octave 3");
+    assert_octave_equal(detect_octave_from_frequency(328.00), 4, "328.00 Hz -> Octave 4");
+    assert_octave_equal(detect_octave_from_frequency(328.01), 4, "328.01 Hz -> Octave 4");
     
     printf("\nBoundary between Octave 4 and 5 (656 Hz):\n");
-    assert_octave_equal(detect_octave_from_frequency(655.99), 4, "655.99 Hz → Octave 4");
-    assert_octave_equal(detect_octave_from_frequency(656.00), 5, "656.00 Hz → Octave 5");
-    assert_octave_equal(detect_octave_from_frequency(656.01), 5, "656.01 Hz → Octave 5");
+    assert_octave_equal(detect_octave_from_frequency(655.99), 4, "655.99 Hz -> Octave 4");
+    assert_octave_equal(detect_octave_from_frequency(656.00), 5, "656.00 Hz -> Octave 5");
+    assert_octave_equal(detect_octave_from_frequency(656.01), 5, "656.01 Hz -> Octave 5");
 }
 
 /**
@@ -210,25 +210,25 @@ void run_octave_relationship_tests(void) {
     total_tests++;
     if (fabs(a3 / a2 - 2.0) < 0.01) {
         passed_tests++;
-        printf("✓ PASS: A3 / A2 = %.4f (should be 2.0)\n", a3 / a2);
+        printf("[PASS] PASS: A3 / A2 = %.4f (should be 2.0)\n", a3 / a2);
     } else {
-        printf("✗ FAIL: A3 / A2 = %.4f (should be 2.0)\n", a3 / a2);
+        printf("[FAIL] FAIL: A3 / A2 = %.4f (should be 2.0)\n", a3 / a2);
     }
     
     total_tests++;
     if (fabs(a4 / a3 - 2.0) < 0.01) {
         passed_tests++;
-        printf("✓ PASS: A4 / A3 = %.4f (should be 2.0)\n", a4 / a3);
+        printf("[PASS] PASS: A4 / A3 = %.4f (should be 2.0)\n", a4 / a3);
     } else {
-        printf("✗ FAIL: A4 / A3 = %.4f (should be 2.0)\n", a4 / a3);
+        printf("[FAIL] FAIL: A4 / A3 = %.4f (should be 2.0)\n", a4 / a3);
     }
     
     total_tests++;
     if (fabs(a5 / a4 - 2.0) < 0.01) {
         passed_tests++;
-        printf("✓ PASS: A5 / A4 = %.4f (should be 2.0)\n", a5 / a4);
+        printf("[PASS] PASS: A5 / A4 = %.4f (should be 2.0)\n", a5 / a4);
     } else {
-        printf("✗ FAIL: A5 / A4 = %.4f (should be 2.0)\n", a5 / a4);
+        printf("[FAIL] FAIL: A5 / A4 = %.4f (should be 2.0)\n", a5 / a4);
     }
 }
 
@@ -276,9 +276,9 @@ void run_error_handling_tests(void) {
     total_tests++;
     if (result < 0.0) {
         passed_tests++;
-        printf("✓ PASS: Invalid note returns negative value (%.2f)\n", result);
+        printf("[PASS] PASS: Invalid note returns negative value (%.2f)\n", result);
     } else {
-        printf("✗ FAIL: Invalid note should return negative, got %.2f\n", result);
+        printf("[FAIL] FAIL: Invalid note should return negative, got %.2f\n", result);
     }
     
     printf("\nFrequency out of range:\n");
@@ -287,18 +287,18 @@ void run_error_handling_tests(void) {
     total_tests++;
     if (result_low < 0.0) {
         passed_tests++;
-        printf("✓ PASS: Frequency too low returns negative (%.2f)\n", result_low);
+        printf("[PASS] PASS: Frequency too low returns negative (%.2f)\n", result_low);
     } else {
-        printf("✗ FAIL: Frequency too low should return negative, got %.2f\n", result_low);
+        printf("[FAIL] FAIL: Frequency too low should return negative, got %.2f\n", result_low);
     }
     
     double result_high = button_to_frequency(&valid, 1500.0);
     total_tests++;
     if (result_high < 0.0) {
         passed_tests++;
-        printf("✓ PASS: Frequency too high returns negative (%.2f)\n", result_high);
+        printf("[PASS] PASS: Frequency too high returns negative (%.2f)\n", result_high);
     } else {
-        printf("✗ FAIL: Frequency too high should return negative, got %.2f\n", result_high);
+        printf("[FAIL] FAIL: Frequency too high should return negative, got %.2f\n", result_high);
     }
 }
 
@@ -307,11 +307,11 @@ void run_error_handling_tests(void) {
  */
 int main(void) {
     printf("\n\n");
-    printf("╔════════════════════════════════════════════════════════╗\n");
-    printf("║   BUTTON INPUT SYSTEM - UNIT TESTS (NATURAL NOTES)    ║\n");
-    printf("║   Testing 7-button interface (A-G, no modifiers)      ║\n");
-    printf("║   With automatic octave detection from FFT frequency  ║\n");
-    printf("╚════════════════════════════════════════════════════════╝\n");
+    printf("??????????????????????????????????????????????????????????\n");
+    printf("?   BUTTON INPUT SYSTEM - UNIT TESTS (NATURAL NOTES)    ?\n");
+    printf("?   Testing 7-button interface (A-G, no modifiers)      ?\n");
+    printf("?   With automatic octave detection from FFT frequency  ?\n");
+    printf("??????????????????????????????????????????????????????????\n");
     
     /* Run all tests */
     run_auto_octave_detection_tests();
@@ -324,14 +324,14 @@ int main(void) {
     
     /* Print summary */
     printf("\n\n");
-    printf("╔════════════════════════════════════════════════════════╗\n");
-    printf("║                    TEST SUMMARY                        ║\n");
-    printf("╠════════════════════════════════════════════════════════╣\n");
-    printf("║  Total Tests:  %d\n", total_tests);
-    printf("║  Passed:       %d\n", passed_tests);
-    printf("║  Failed:       %d\n", total_tests - passed_tests);
-    printf("║  Pass Rate:    %.1f%%\n", (100.0 * passed_tests) / total_tests);
-    printf("╚════════════════════════════════════════════════════════╝\n\n");
+    printf("??????????????????????????????????????????????????????????\n");
+    printf("?                    TEST SUMMARY                        ?\n");
+    printf("??????????????????????????????????????????????????????????\n");
+    printf("?  Total Tests:  %d\n", total_tests);
+    printf("?  Passed:       %d\n", passed_tests);
+    printf("?  Failed:       %d\n", total_tests - passed_tests);
+    printf("?  Pass Rate:    %.1f%%\n", (100.0 * passed_tests) / total_tests);
+    printf("??????????????????????????????????????????????????????????\n\n");
     
     return (passed_tests == total_tests) ? 0 : 1;
 }

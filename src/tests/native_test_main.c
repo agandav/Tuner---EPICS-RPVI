@@ -207,9 +207,9 @@ void test_fft_computation(void) {
         /* Process through FFT pipeline */
         double detected_freq = apply_fft(samples, SAMPLE_SIZE); // apply FFT and get detected frequency
         
-        /* Check accuracy (±20 Hz tolerance accounts for bin resolution at 10 kHz sample rate)
+        /* Check accuracy (+/-20 Hz tolerance accounts for bin resolution at 10 kHz sample rate)
            At 10 kHz with 256-point FFT: bin resolution = 39.06 Hz/bin
-           Realistic tolerance: ±1 bin ≈ ±20 Hz for pure sine waves */
+           Realistic tolerance: +/-1 bin ~= +/-20 Hz for pure sine waves */
         double error = fabs(detected_freq - target_freq);
         int pass = (error <= 20.0);
         
@@ -417,24 +417,36 @@ void test_peak_detection(void) {
 void test_string_detection(void) {
     printf("\n");
     printf("================================================\n");
-    printf("TEST 3: STRING DETECTION\n");
+    printf("TEST 3: STRING DETECTION (with FFT)\n");
     printf("================================================\n\n");
     
+    int16_t samples[SAMPLE_SIZE];
     int pass_count = 0;
     
     for (int i = 0; i < NUM_OPEN_STRINGS; i++) {
-        double freq = open_strings[i].frequency;
+        double target_freq = open_strings[i].frequency;
         
-        printf("Detecting string for %.2f Hz (%s)...\n", freq, open_strings[i].name);
+        /* Generate synthetic audio signal at target frequency */
+        printf("Testing %s (target %.2f Hz)...\n", open_strings[i].name, target_freq);
+        for (int j = 0; j < SAMPLE_SIZE; j++) {
+            double angle = 2.0 * M_PI * target_freq * j / SAMPLE_RATE;
+            samples[j] = (int16_t)(10000 * sin(angle));
+        }
         
-        TuningResult result = analyze_tuning_auto(freq);
+        /* Run FFT to get detected frequency (realistic with FFT error) */
+        double detected_freq = apply_fft(samples, SAMPLE_SIZE);
         
-        printf("  Detected: String %d (%s)\n", result.detected_string, result.note_name);
+        /* Analyze tuning using FFT-detected frequency */
+        TuningResult result = analyze_tuning_auto(detected_freq);
+        
+        printf("  Target: %.2f Hz | FFT Detected: %.2f Hz | Error: %.2f Hz\n",
+               target_freq, detected_freq, fabs(detected_freq - target_freq));
+        printf("  Identified: String %d (%s)\n", result.detected_string, result.note_name);
         printf("  Target Frequency: %.2f Hz\n", result.target_frequency);
-        printf("  Cents Offset: %.2f\n", result.cents_offset);
+        printf("  Cents Offset: %.2f cents\n", result.cents_offset);
         printf("  Direction: %s\n", result.direction);
         
-        /* All strings should be detected correctly */
+        /* All strings should be detected correctly (allow for FFT error) */
         if (result.detected_string > 0 && result.detected_string <= 6) {
             printf("  Result: [OK] PASS\n");
             pass_count++;

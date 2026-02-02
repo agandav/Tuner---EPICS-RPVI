@@ -1,6 +1,6 @@
-# Tuner — EPICS RPVI (Guitar Tuner)
+# Tuner - EPICS RPVI (Guitar Tuner)
 
-Software for Purdue Engineering Projects in Community Service — Resources for People with Visual Impairments (Tuner team). A guitar tuner application that detects strings, calculates tuning accuracy in cents, and provides audio feedback.
+Software for Purdue Engineering Projects in Community Service - Resources for People with Visual Impairments (Tuner team). A guitar tuner application that detects strings, calculates tuning accuracy in cents, and provides audio feedback.
 
 ---
 
@@ -22,8 +22,8 @@ Software for Purdue Engineering Projects in Community Service — Resources for 
 |------|---------|
 | `tuner_tests.c` | Comprehensive test suite validating string detection, cent calculations, and audio sequencing. |
 | `wrapper.c` | Stub file for PlatformIO integration. |
-| `*_impl.c` | Placeholder stub implementations to avoid duplicate symbols. |
-| `buffer_manager.cpp`, `signal_processing.cpp`, `fft_processor.cpp`, `config.h` | Empty or placeholder files for future expansion. |
+| `*_impl.c` | Stub implementations to avoid duplicate symbols during linking. |
+| `buffer_manager.cpp`, `signal_processing.cpp`, `fft_processor.cpp`, `config.h` | Reserved for future expansion. |
 
 ---
 

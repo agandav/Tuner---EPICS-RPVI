@@ -37,10 +37,10 @@ typedef struct {
  * Detect octave from detected frequency
  * 
  * Maps frequency ranges to octaves using standard guitar ranges:
- *   82-164 Hz   → Octave 2 (partial: E2-B2)
- *   164-328 Hz  → Octave 3 (complete: C3-B3)
- *   328-656 Hz  → Octave 4 (complete: C4-B4)
- *   656-1312 Hz → Octave 5 (complete: C5-B5)
+ *   82-164 Hz   -> Octave 2 (partial: E2-B2)
+ *   164-328 Hz  -> Octave 3 (complete: C3-B3)
+ *   328-656 Hz  -> Octave 4 (complete: C4-B4)
+ *   656-1312 Hz -> Octave 5 (complete: C5-B5)
  * 
  * @param detected_freq - The frequency detected by FFT
  * @return Octave (2-5), or 0 if frequency is out of valid range
@@ -61,7 +61,7 @@ int detect_octave_from_frequency(double detected_freq);
  *   ButtonInput btn = {NOTE_A};  // User presses A button
  *   double detected = 441.5;  // FFT detected 441.5 Hz
  *   double target = button_to_frequency(&btn, detected);  // Returns 440.0 Hz
- *   // System auto-detected octave 4 from 441.5 Hz → A4 = 440.0 Hz
+ *   // System auto-detected octave 4 from 441.5 Hz -> A4 = 440.0 Hz
  */
 double button_to_frequency(const ButtonInput* button, double detected_freq);
 

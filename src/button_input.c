@@ -15,7 +15,7 @@
 #define A4_REFERENCE 440.0
 
 /**
- * Semitone ratio: Each semitone is 2^(1/12) ≈ 1.05946
+ * Semitone ratio: Each semitone is 2^(1/12) ~= 1.05946
  * Used to calculate frequencies relative to A4
  */
 #define SEMITONE_RATIO 1.05946309436
@@ -47,11 +47,11 @@ int note_to_semitone_offset(NoteButton note) {
  * Detect octave from detected frequency
  * 
  * Maps frequency ranges to octaves based on guitar tuning range:
- *   41-82 Hz    → Octave 1 (sub-bass, below practical guitar)
- *   82-164 Hz   → Octave 2 (low strings)
- *   164-328 Hz  → Octave 3 (mid strings)
- *   328-656 Hz  → Octave 4 (high strings)
- *   656-1312 Hz → Octave 5 (ultra-high frets)
+ *   41-82 Hz    -> Octave 1 (sub-bass, below practical guitar)
+ *   82-164 Hz   -> Octave 2 (low strings)
+ *   164-328 Hz  -> Octave 3 (mid strings)
+ *   328-656 Hz  -> Octave 4 (high strings)
+ *   656-1312 Hz -> Octave 5 (ultra-high frets)
  * 
  * @param detected_freq - Frequency detected by FFT
  * @return Octave (2-5), or 0 if frequency is out of valid range
@@ -121,7 +121,7 @@ int is_valid_button_input(const ButtonInput* button) {
  * Example: User presses [A] button while playing 441.5 Hz frequency
  *   - Button: A (natural, no modifiers)
  *   - Detected: 441.5 Hz
- *   - Auto-octave: 441.5 Hz falls in 328-656 range → Octave 4
+ *   - Auto-octave: 441.5 Hz falls in 328-656 range -> Octave 4
  *   - Note A: offset = 0
  *   - Octave 4: same as reference octave A4
  *   - Semitones from A4: 0
@@ -163,7 +163,7 @@ double button_to_frequency(const ButtonInput* button, double detected_freq) {
      * Formula: f = f_ref * (semitone_ratio)^n
      * Where:
      *   f_ref = 440 Hz (A4 reference)
-     *   semitone_ratio = 2^(1/12) ≈ 1.05946
+     *   semitone_ratio = 2^(1/12) ~= 1.05946
      *   n = number of semitones from reference
      * 
      * More precisely: f = 440 * pow(2.0, n/12.0)

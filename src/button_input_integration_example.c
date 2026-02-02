@@ -16,7 +16,7 @@
 /**
  * STEP 1: Read button input from hardware
  * 
- * This is a TEMPLATE - actual implementation depends on Teensy GPIO setup
+ * EXAMPLE IMPLEMENTATION - customize based on your Teensy GPIO setup
  * 
  * IMPORTANT: User presses ONE of 7 note buttons (A-G)
  * Octave is auto-detected from FFT frequency!
@@ -40,7 +40,7 @@ ButtonInput read_button_input_from_hardware(void) {
      *   // NO OCTAVE SELECTION NEEDED - auto-detected from FFT frequency!
      */
     
-    /* Placeholder: return A (octave will be auto-detected from FFT) */
+    /* Example: return A (octave will be auto-detected from FFT) */
     input.note = NOTE_A;
     
     return input;
@@ -53,7 +53,7 @@ ButtonInput read_button_input_from_hardware(void) {
  * 1. User presses one note button (e.g., "A")
  * 2. User plays guitar string
  * 3. FFT detects frequency (e.g., 441 Hz)
- * 4. System auto-detects octave from frequency (441 Hz → octave 4)
+ * 4. System auto-detects octave from frequency (441 Hz -> octave 4)
  * 5. System calculates target frequency for A4 (440 Hz)
  * 6. Tuner shows UP/DOWN/IN_TUNE relative to target
  */
@@ -129,11 +129,11 @@ void tuner_main_with_button_input(double detected_frequency) {
     /* STEP 7: Display tuning direction */
     const char* direction;
     if (cents_offset < -2.0) {
-        direction = "FLAT - Tune UP ↑";
+        direction = "FLAT - Tune UP (up)";
     } else if (cents_offset > 2.0) {
-        direction = "SHARP - Tune DOWN ↓";
+        direction = "SHARP - Tune DOWN (down)";
     } else {
-        direction = "IN TUNE ✓";
+        direction = "IN TUNE [PASS]";
     }
     
     printf("Status:          %s\n", direction);
@@ -145,10 +145,10 @@ void tuner_main_with_button_input(double detected_frequency) {
  */
 void example_1_a4_reference(void) {
     printf("\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     printf("EXAMPLE 1: User presses [A] button\n");
     printf("           Plays 441.5 Hz (slightly sharp)\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     
     /* User presses: [A] button (only note, no modifiers) */
     ButtonInput btn = {NOTE_A};
@@ -158,9 +158,9 @@ void example_1_a4_reference(void) {
     
     /* System calculates:
      * - Button: A
-     * - Detected: 441.5 Hz → auto-detect octave 4 (328-656 Hz range)
+     * - Detected: 441.5 Hz -> auto-detect octave 4 (328-656 Hz range)
      * - Target: A4 = 440 Hz
-     * - User gets feedback: "SHARP - Tune DOWN ↓"
+     * - User gets feedback: "SHARP - Tune DOWN (down arrow)"
      */
     
     tuner_main_with_button_input(detected);
@@ -171,10 +171,10 @@ void example_1_a4_reference(void) {
  */
 void example_2_e3_lower_octave(void) {
     printf("\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     printf("EXAMPLE 2: User presses [E] button\n");
     printf("           Plays 164.81 Hz (E3 - low E string)\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     
     /* User presses: [E] button (only note, no modifiers) */
     ButtonInput btn = {NOTE_E};
@@ -184,9 +184,9 @@ void example_2_e3_lower_octave(void) {
     
     /* System calculates:
      * - Button: E
-     * - Detected: 164.81 Hz → auto-detect octave 3 (164-328 Hz range)
+     * - Detected: 164.81 Hz -> auto-detect octave 3 (164-328 Hz range)
      * - Target: E3 = 164.81 Hz
-     * - User gets feedback: "IN TUNE ✓"
+     * - User gets feedback: "IN TUNE [OK]"
      */
     
     tuner_main_with_button_input(detected);
@@ -197,10 +197,10 @@ void example_2_e3_lower_octave(void) {
  */
 void example_3_d_note(void) {
     printf("\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     printf("EXAMPLE 3: User presses [D] button\n");
     printf("           Plays 293.66 Hz (D4 - upper D string)\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     
     /* User presses: [D] button (only note, no modifiers) */
     ButtonInput btn = {NOTE_D};
@@ -210,9 +210,9 @@ void example_3_d_note(void) {
     
     /* System calculates:
      * - Button: D
-     * - Detected: 293.66 Hz → auto-detect octave 4 (328-656 Hz range)
+     * - Detected: 293.66 Hz -> auto-detect octave 4 (328-656 Hz range)
      * - Target: D4 = 293.66 Hz
-     * - User gets feedback: "IN TUNE ✓"
+     * - User gets feedback: "IN TUNE [OK]"
      */
     
     tuner_main_with_button_input(detected);
@@ -223,10 +223,10 @@ void example_3_d_note(void) {
  */
 void example_4_g_note(void) {
     printf("\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     printf("EXAMPLE 4: User presses [G] button\n");
     printf("           Plays 196.00 Hz (slightly flat)\n");
-    printf("════════════════════════════════════════════\n");
+    printf("????????????????????????????????????????????\n");
     
     /* User presses: [G] button (only note, no modifiers) */
     ButtonInput btn = {NOTE_G};
@@ -236,9 +236,9 @@ void example_4_g_note(void) {
     
     /* System calculates:
      * - Button: G
-     * - Detected: 196.00 Hz → auto-detect octave 3 (164-328 Hz range)
+     * - Detected: 196.00 Hz -> auto-detect octave 3 (164-328 Hz range)
      * - Target: G3 = 196.00 Hz
-     * - User gets feedback: "IN TUNE ✓"
+     * - User gets feedback: "IN TUNE [OK]"
      */
     
     tuner_main_with_button_input(detected);

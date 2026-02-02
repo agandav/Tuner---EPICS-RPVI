@@ -151,6 +151,22 @@ void audio_amplifier_disable(void);
 bool audio_amplifier_is_enabled(void);
 
 /* ============================================================================
+ * MODE SWITCH (Play Tone I / Listen Only O)
+ * ========================================================================== */
+
+/**
+ * Read the mode switch state
+ * Returns: true if Play Tone mode (I), false if Listen Only mode (O)
+ */
+bool mode_switch_is_play_tone(void);
+
+/**
+ * Read the mode switch state
+ * Returns: true if Listen Only mode (O), false if Play Tone mode (I)
+ */
+bool mode_switch_is_listen_only(void);
+
+/* ============================================================================
  * ACCESSIBILITY FEATURES
  * ========================================================================== */
 

@@ -79,7 +79,7 @@ double calculate_cents_offset(double detected_freq, double target_freq) {
 }
 
 const char* get_tuning_direction(double cents) {
-	const double TUNING_TOLERANCE = 2.0; // ±2 cents considered "in tune"
+	const double TUNING_TOLERANCE = 2.0; // +/-2 cents considered "in tune"
 	if (cents < -TUNING_TOLERANCE) {
 		return "UP";
 	} else if (cents > TUNING_TOLERANCE) {
