@@ -29,7 +29,7 @@ const GuitarString STANDARD_TUNING[6] = {
     {2, NOTE_B3, 246.94f},  // 2nd string - B
     {3, NOTE_G3, 196.00f},  // 3rd string - G
     {4, NOTE_D3, 146.83f},  // 4th string - D
-    {5, NOTE_A2, 110.00f},  // 5th string - A
+    {5, NOTE_A2, 110.00f},  // 5th string - A 
     {6, NOTE_E2, 82.41f}    // 6th string (thickest) - Low E
 };
 

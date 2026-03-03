@@ -191,6 +191,7 @@ extern "C" {
 #define AUDIO_FILES_PATH "/AUDIO/"
 
 /* Pre-recorded audio file names (NOT USED - for reference only) */
+/*
 #define AUDIO_FILE_E_STRING     "/AUDIO/STRING_E.wav"
 #define AUDIO_FILE_B_STRING     "/AUDIO/STRING_B.wav"
 #define AUDIO_FILE_G_STRING     "/AUDIO/STRING_G.wav"
@@ -201,8 +202,8 @@ extern "C" {
 #define AUDIO_FILE_TUNE_UP      "/AUDIO/TUNE_UP.wav"
 #define AUDIO_FILE_TUNE_DOWN    "/AUDIO/TUNE_DOWN.wav"
 #define AUDIO_FILE_IN_TUNE      "/AUDIO/IN_TUNE.wav"
+*/
 #endif
-
 /* ============================================================================
  * PIN USAGE SUMMARY - UPDATED FOR I2S AUDIO
  * Quick reference for all pin assignments
