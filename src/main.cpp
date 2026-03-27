@@ -166,7 +166,6 @@ static void state_idle(void) {
             Serial.println(" Hz");
             Serial.println("========================================");
             
-            audio_amplifier_enable();
             read_mode_switch();
             
             // Transition based on mode
@@ -206,7 +205,6 @@ static void state_playing_reference(void) {
         Serial.println("[STATE] Button released - returning to IDLE");
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
-        audio_amplifier_disable();
     }
 }
 
@@ -232,7 +230,6 @@ static void state_waiting_ready_beep(void) {
         Serial.println("[STATE] Button released - returning to IDLE");
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
-        audio_amplifier_disable();
     }
 }
 
@@ -301,7 +298,6 @@ static void state_listening(void) {
         Serial.println("[STATE] Button released - returning to IDLE");
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
-        audio_amplifier_disable();
     }
 }
 
@@ -331,7 +327,6 @@ static void state_playback_user_note(void) {
         Serial.println("[STATE] Button released - returning to IDLE");
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
-        audio_amplifier_disable();
     }
 }
 
@@ -365,7 +360,6 @@ static void state_playback_target_note(void) {
         Serial.println("[STATE] Button released - returning to IDLE");
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
-        audio_amplifier_disable();
     }
 }
 
@@ -432,7 +426,6 @@ static void state_providing_feedback(void) {
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
         tuning_in_progress = false;
-        audio_amplifier_disable();
     }
 }
 
@@ -468,7 +461,6 @@ static void state_error_recovery(void) {
         Serial.println("[STATE] Button released - returning to IDLE");
         current_state = TUNER_STATE_IDLE;
         target_string = 0;
-        audio_amplifier_disable();
         warning_played = 0;
     }
 }

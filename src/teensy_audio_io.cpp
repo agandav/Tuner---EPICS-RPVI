@@ -1,261 +1,224 @@
-/**
- * teensy_audio_io.cpp - Teensy Audio Library Implementation
- * 
- * Handles all audio input/output using the Teensy Audio Library
- * - Sine wave synthesis for tone playback
- * - Microphone input for frequency detection
- * - I2S audio output to speaker/amplifier
- * 
- * Hardware: Teensy 4.1 with PAM8302A amplifier (from schematic)
- */
-
 #include <Arduino.h>
-// Include only the specific Audio library components we need (not Audio.h which includes SD card headers)
 #include <AudioStream.h>
 #include <synth_sine.h>
-#include <input_i2s.h>
-#include <output_i2s.h>
+#include <output_mqs.h>
+#include "config.h"
 #include "teensy_audio_io.h"
 
+extern "C" {
+    #include "audio_processing.h"
+}
+
 /* ============================================================================
- * AUDIO OBJECTS - Teensy Audio Library
+ * AUDIO OBJECTS - MQS OUTPUT
  * ========================================================================== */
 
-// Synthesis objects (for playing tones)
-AudioSynthWaveformSine   sine1;          // Main sine wave generator
-AudioSynthWaveformSine   beep_sine;      // Separate generator for beeps
+AudioSynthWaveformSine   sine1;         // Main sine wave for reference tones
+AudioSynthWaveformSine   beep_sine;     // Separate sine wave for feedback beeps
+AudioOutputMQS           mqs_output;    // MQS output: pin 10 (R) and pin 12 (L)
 
-// Input object (for microphone)
-AudioInputI2S            i2s_input;      // I2S audio input (microphone)
-
-// Output object (for speaker)
-AudioOutputI2S           i2s_output;     // I2S audio output (speaker/amp)
-
-// Connections (audio routing)
-AudioConnection          patchCord1(sine1, 0, i2s_output, 0);       // Tone -> Left
-AudioConnection          patchCord2(sine1, 0, i2s_output, 1);       // Tone -> Right
-AudioConnection          patchCord3(beep_sine, 0, i2s_output, 0);   // Beep -> Left (mixed)
-AudioConnection          patchCord4(beep_sine, 0, i2s_output, 1);   // Beep -> Right (mixed)
-
-// Optional: If using SGTL5000 audio shield
-// AudioControlSGTL5000     audioShield;
+/* Route both generators into both MQS channels */
+AudioConnection          patchCord1(sine1,     0, mqs_output, 0);  // tone -> right (pin 10)
+AudioConnection          patchCord2(sine1,     0, mqs_output, 1);  // tone -> left  (pin 12)
+AudioConnection          patchCord3(beep_sine, 0, mqs_output, 0);  // beep -> right (pin 10)
+AudioConnection          patchCord4(beep_sine, 0, mqs_output, 1);  // beep -> left  (pin 12)
 
 /* ============================================================================
  * TONE PLAYBACK STATE
  * ========================================================================== */
 
-static bool tone_playing = false;
-static uint32_t tone_start_time = 0;
-static uint32_t tone_duration = 0;
+static bool     tone_playing     = false;
+static uint32_t tone_start_time  = 0;
+static uint32_t tone_duration_ms = 0;
+static float    current_freq     = 0.0f;
 
 /* ============================================================================
  * INITIALIZATION
  * ========================================================================== */
 
-/**
- * Initialize the Teensy audio system
- * Call this once in setup()
- */
 void init_audio_system(void) {
-    Serial.println("[AUDIO] Initializing Teensy Audio Library...");
-    
-    // Allocate audio memory (required!)
-    // Each block is 128 samples, allocate enough for audio processing
+    Serial.println("[AUDIO] Initializing...");
+
+    /* MQS audio library setup */
     AudioMemory(20);
-    
-    // If using SGTL5000 audio shield (uncomment if you have it):
-    // audioShield.enable();
-    // audioShield.volume(0.7);  // 70% volume
-    // audioShield.inputSelect(AUDIO_INPUT_LINEIN);  // or AUDIO_INPUT_MIC
-    
-    // Start with no output
-    sine1.amplitude(0.0);
-    beep_sine.amplitude(0.0);
-    
-    // Set default waveform type (sine wave)
-    sine1.frequency(440.0);  // Default to A4
-    beep_sine.frequency(800.0);  // Default beep frequency
-    
-    Serial.println("[AUDIO] Audio system initialized");
-    Serial.print("[AUDIO] CPU Usage: ");
+    sine1.amplitude(0.0f);
+    beep_sine.amplitude(0.0f);
+    sine1.frequency(440.0f);
+    beep_sine.frequency(800.0f);
+
+    /* ADC setup for microphone on pin 39 (A17) */
+    analogReadResolution(12);    // 12-bit: values 0 to 4095
+    analogReadAveraging(4);      // Average 4 reads per sample to reduce noise
+
+    Serial.println("[AUDIO] MQS output ready on pin 10");
+    Serial.println("[AUDIO] Microphone ADC ready on pin 39 (A17)");
+    Serial.print("[AUDIO] CPU usage: ");
     Serial.print(AudioProcessorUsage());
     Serial.println("%");
-    Serial.print("[AUDIO] Memory Usage: ");
-    Serial.print(AudioMemoryUsage());
-    Serial.println(" blocks");
 }
 
 /* ============================================================================
- * TONE PLAYBACK FUNCTIONS
+ * TONE PLAYBACK
+ * Non-blocking - call update_tone_playback() every loop() to stop on time
  * ========================================================================== */
 
-/**
- * Play a tone at a specific frequency
- * This is the main function used for playback
- * 
- * @param frequency - Frequency in Hz (e.g., 82.41, 440.0, 329.63)
- * @param duration_ms - How long to play in milliseconds
- * 
- * Example:
- *   play_tone(329.63, 2000);  // Play E4 for 2 seconds
- */
 void play_tone(float frequency, uint32_t duration_ms) {
-    Serial.print("[AUDIO] Playing ");
+    if (frequency <= 0.0f || duration_ms == 0) return;
+
+    Serial.print("[TONE] ");
     Serial.print(frequency, 2);
     Serial.print(" Hz for ");
     Serial.print(duration_ms);
     Serial.println(" ms");
-    
-    // Set frequency
+
+    current_freq     = frequency;
+    tone_playing     = true;
+    tone_start_time  = millis();
+    tone_duration_ms = duration_ms;
+
     sine1.frequency(frequency);
-    
-    // Set amplitude (volume) - 0.0 to 1.0
-    sine1.amplitude(0.7);  // 70% volume
-    
-    // Store timing info for non-blocking playback
-    tone_playing = true;
-    tone_start_time = millis();
-    tone_duration = duration_ms;
-    
-    // Blocking version (simpler but locks up processor):
-    // delay(duration_ms);
-    // sine1.amplitude(0.0);
-    
-    // For blocking playback, uncomment above and comment out state tracking
+    sine1.amplitude(TONE_AMPLITUDE_DEFAULT);
 }
 
-/**
- * Play a short beep (for feedback)
- * 
- * @param frequency - Beep frequency in Hz (typically 400-1200 Hz)
- * @param duration_ms - Beep duration in milliseconds (typically 50-200 ms)
- */
+/* ============================================================================
+ * BEEP PLAYBACK
+ * Blocking - returns after beep is complete
+ * Used for short feedback beeps where blocking is acceptable
+ * ========================================================================== */
+
 void play_beep(float frequency, uint32_t duration_ms) {
+    if (frequency <= 0.0f || duration_ms == 0) return;
+
+    Serial.print("[BEEP] ");
+    Serial.print(frequency, 0);
+    Serial.print(" Hz for ");
+    Serial.print(duration_ms);
+    Serial.println(" ms");
+
     beep_sine.frequency(frequency);
-    beep_sine.amplitude(0.5);  // 50% volume (quieter than main tone)
+    beep_sine.amplitude(BEEP_AMPLITUDE_DEFAULT);
     delay(duration_ms);
-    beep_sine.amplitude(0.0);
+    beep_sine.amplitude(0.0f);
 }
 
-/**
- * Play a "ready" beep to signal user can play their string
- */
 void play_ready_beep(void) {
-    Serial.println("[AUDIO] BEEP! (Ready)");
-    play_beep(1000.0, 200);  // 1000 Hz for 200ms
+    Serial.println("[AUDIO] Ready beep");
+    play_beep(1000.0f, 200);
 }
 
-/**
- * Stop all audio output immediately
- */
 void stop_all_audio(void) {
-    sine1.amplitude(0.0);
-    beep_sine.amplitude(0.0);
+    sine1.amplitude(0.0f);
+    beep_sine.amplitude(0.0f);
     tone_playing = false;
-    Serial.println("[AUDIO] Audio stopped");
+    Serial.println("[AUDIO] Stopped");
 }
 
 /**
- * Update tone playback timing
- * Call this in your main loop() to handle non-blocking playback
+ * update_tone_playback()
+ * Call this every loop() iteration.
+ * Stops the non-blocking tone once its duration has elapsed.
+ * Beeps are always blocking and do not need this function.
  */
 void update_tone_playback(void) {
-    if (tone_playing) {
-        uint32_t elapsed = millis() - tone_start_time;
-        
-        if (elapsed >= tone_duration) {
-            // Tone duration complete, stop playing
-            sine1.amplitude(0.0);
-            tone_playing = false;
-            
-            Serial.println("[AUDIO] Tone complete");
-        }
+    if (!tone_playing) return;
+
+    if (millis() - tone_start_time >= tone_duration_ms) {
+        sine1.amplitude(0.0f);
+        tone_playing = false;
+        Serial.println("[AUDIO] Tone complete");
     }
 }
 
 /* ============================================================================
- * AUDIO AMPLIFIER CONTROL (PAM8302A from schematic)
- * Note: Amplifier control functions are in hardware_interface.c
+ * MICROPHONE INPUT AND FREQUENCY DETECTION
+ *
+ * WHAT THIS DOES (the original version always returned 0.0 - it was broken):
+ *
+ *   1. Samples the electret microphone on pin 39 (A17) at approximately 10 kHz
+ *      by using delayMicroseconds(95) between reads (~5us per analogRead = ~100us total)
+ *   2. Converts 12-bit unsigned ADC values (0-4095) to signed int16 centered at zero
+ *      by subtracting ADC_CENTER_VALUE (2048)
+ *   3. Passes the sample buffer to apply_fft() in audio_processing.c
+ *   4. Returns detected frequency in Hz, or 0.0 if signal is too weak
+ *
+ * CALIBRATION NOTE:
+ *   If detected frequencies are consistently off by a fixed ratio, the actual
+ *   sample rate differs from 10 kHz. Adjust the delayMicroseconds value below
+ *   to compensate. Lower value = higher sample rate, higher value = lower rate.
  * ========================================================================== */
 
-/* ============================================================================
- * MICROPHONE INPUT & FREQUENCY DETECTION
- * ========================================================================== */
-
-/**
- * Read frequency from microphone using FFT
- * 
- * @param buffer - Audio sample buffer (optional, can be NULL)
- * @param buffer_size - Size of buffer (optional, can be 0)
- * @return Detected frequency in Hz, or 0.0 if no signal
- * 
- * This function interfaces with the audio_processing module for FFT analysis
- */
-double read_frequency_from_microphone(int16_t* buffer, int buffer_size) {
-    /* Note: Direct microphone reading requires custom implementation.
-     * The Teensy Audio Library uses a callback/update system via AudioStream.
-     * Audio data should be accessed through AudioAnalyzeFFT1024 or similar analysis objects.
-     * This function is a placeholder for integration with audio_processing.c
-     */
-    (void)buffer;
+double read_frequency_from_microphone(int16_t* external_buffer, int buffer_size) {
+    /* external_buffer kept for API compatibility with main.cpp but not used */
+    (void)external_buffer;
     (void)buffer_size;
-    
-    return 0.0;  // Placeholder - actual frequency detection via AudioAnalyzeFFT1024
+
+    int16_t samples[SAMPLE_SIZE];
+
+    /* Sample ADC at ~10 kHz from pin 39 (A17) */
+    for (int i = 0; i < SAMPLE_SIZE; i++) {
+        int raw    = analogRead(MICROPHONE_INPUT_PIN);       // 0 to 4095
+        samples[i] = (int16_t)(raw - ADC_CENTER_VALUE);     // center at zero: -2048 to +2047
+        delayMicroseconds(95);                               // ~100us per sample = ~10 kHz
+    }
+
+    /* Pass to FFT pipeline in audio_processing.c */
+    return apply_fft(samples, SAMPLE_SIZE);
 }
 
 /* ============================================================================
- * DIAGNOSTIC / DEBUG FUNCTIONS
+ * DIAGNOSTICS
  * ========================================================================== */
 
-/**
- * Print audio system status
- * Useful for debugging
- */
 void print_audio_status(void) {
     Serial.println("\n=== Audio System Status ===");
-    Serial.print("CPU Usage: ");
+    Serial.println("Output: MQS on pins 10/12");
+    Serial.print("CPU usage: ");
     Serial.print(AudioProcessorUsage());
     Serial.println("%");
-    
-    Serial.print("CPU Max: ");
-    Serial.print(AudioProcessorUsageMax());
-    Serial.println("%");
-    
-    Serial.print("Memory Usage: ");
+    Serial.print("Memory usage: ");
     Serial.print(AudioMemoryUsage());
     Serial.println(" blocks");
-    
-    Serial.print("Memory Max: ");
-    Serial.print(AudioMemoryUsageMax());
-    Serial.println(" blocks");
-    
-    Serial.print("Tone Playing: ");
+    Serial.print("Tone playing: ");
     Serial.println(tone_playing ? "Yes" : "No");
-    
+    if (tone_playing) {
+        Serial.print("  Frequency: ");
+        Serial.print(current_freq, 2);
+        Serial.println(" Hz");
+        Serial.print("  Elapsed: ");
+        Serial.print(millis() - tone_start_time);
+        Serial.print(" / ");
+        Serial.print(tone_duration_ms);
+        Serial.println(" ms");
+    }
     Serial.println("===========================\n");
 }
 
 /**
- * Test audio system by playing a scale
+ * test_audio_playback()
+ * Plays all 6 guitar string reference tones in sequence.
+ * Run this at startup to verify speaker and amp are working
+ * before entering the main tuning loop.
  */
 void test_audio_playback(void) {
-    Serial.println("[TEST] Playing test scale...");
-    
-    // Play C major scale
-    float notes[] = {261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25};
-    const char* names[] = {"C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"};
-    
-    for (int i = 0; i < 8; i++) {
-        Serial.print("[TEST] Playing ");
+    Serial.println("[TEST] Playing guitar string reference tones...");
+
+    float       freqs[] = {82.41f, 110.00f, 146.83f, 196.00f, 246.94f, 329.63f};
+    const char* names[] = {"E2",   "A2",    "D3",    "G3",    "B3",    "E4"   };
+
+    for (int i = 0; i < 6; i++) {
+        Serial.print("[TEST] String ");
+        Serial.print(i + 1);
+        Serial.print(": ");
         Serial.print(names[i]);
         Serial.print(" (");
-        Serial.print(notes[i], 2);
+        Serial.print(freqs[i], 2);
         Serial.println(" Hz)");
-        
-        play_tone(notes[i], 500);
-        delay(500);  // Wait for tone to finish
-        delay(100);  // Short pause between notes
+
+        play_tone(freqs[i], 800);
+        delay(800);
+        stop_all_audio();
+        delay(200);
     }
-    
-    Serial.println("[TEST] Test complete!");
+
+    Serial.println("[TEST] Done. If no sound check LM386 IN is on pin 10.");
 }

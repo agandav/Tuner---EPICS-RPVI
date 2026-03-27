@@ -1,4 +1,8 @@
-Import("env")
+# PlatformIO extra script - runs in SCons build environment
+# pyright: reportUndefinedVariable=false
+# type: ignore
+
+Import("env")  # SCons function - injects 'env' at runtime
 import os
 
 def skip_sd_files(node):
