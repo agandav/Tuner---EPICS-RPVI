@@ -4,3 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 CMSIS-DSP-Tests/CMSIS-DSP
+vcpkg/
