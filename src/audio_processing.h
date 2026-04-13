@@ -5,7 +5,7 @@
  *
  * CHANGES FROM ORIGINAL:
  *   1. Fixed unclosed comment block before function declarations -
- *      original had an unclosed /* which hid all declarations from
+ *      original had an unclosed slash-star comment token which hid all declarations from
  *      the compiler, causing linker errors on every call site.
  *   2. Removed MIN_AMPLITUDE define - it conflicted with config.h
  *      which also defines MIN_AMPLITUDE (with a different value).
@@ -25,11 +25,12 @@ extern "C" {
  * CONFIGURATION CONSTANTS
  * ========================================================================== */
 
-#define SAMPLE_RATE  10000   /* 10 kHz sample rate - sufficient for guitar 82-330 Hz */
-#define SAMPLE_SIZE  1024    /* Number of ADC samples captured per FFT frame          */
+#define FFT_SIZE     1024
+#define SAMPLE_SIZE  1024
+#define SAMPLE_RATE  10500
 
-/* NOTE: MIN_AMPLITUDE is defined in config.h (value: 100).
-   Do not redefine it here. */
+/* NOTE: MIN_AMPLITUDE, FFT_SIZE, and frequency defines are in config.h.
+   Do not redefine them here. */
 
 /* ============================================================================
  * FUNCTION DECLARATIONS

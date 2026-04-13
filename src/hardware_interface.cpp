@@ -1,5 +1,5 @@
 /**
- * hardware_interface.c - GPIO and Input/Output Interface Implementation
+ * hardware_interface.cpp - GPIO and Input/Output Interface Implementation
  *
  * CHANGES FROM ORIGINAL:
  *   1. Removed audio_amplifier_enable() and audio_amplifier_disable() entirely.
@@ -18,6 +18,11 @@
 #include "config.h"
 #include <stdio.h>
 #include <string.h>
+#include <Arduino.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* ============================================================================
  * INTERNAL STATE
@@ -56,14 +61,12 @@ int hardware_interface_init(void) {
     /* Mode switch - active HIGH, same logic */
     pinMode(MODE_SWITCH_PIN, INPUT_PULLDOWN);       // Pin 11
 
-    if (ENABLE_DEBUG_PRINTS) {
-        Serial.begin(SERIAL_BAUD_RATE);
-        delay(100);
-        Serial.println("[HW] Hardware interface initialized");
-        Serial.println("[HW] Buttons: pins 22, 3, 4, 5, 6, 9");
-        Serial.println("[HW] Mode switch: pin 11");
-        Serial.println("[HW] Amp: LM386 - no enable pin, always on when powered");
-    }
+   if (ENABLE_DEBUG_PRINTS) {
+    printf("[HW] Hardware interface initialized\n");
+    printf("[HW] Buttons: pins 22, 3, 4, 5, 6, 9\n");
+    printf("[HW] Mode switch: pin 11\n");
+    printf("[HW] Amp: LM386 - no enable pin, always on when powered\n");
+}
 #else
     printf("[HW] Hardware interface initialized (non-Teensy stub)\n");
 #endif
@@ -233,3 +236,7 @@ void hardware_print_button_events(void) {
 uint32_t hardware_get_button_count(void) {
     return button_event_count;
 }
+
+#ifdef __cplusplus
+}
+#endif

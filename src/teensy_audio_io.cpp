@@ -146,22 +146,29 @@ void update_tone_playback(void) {
  *   sample rate differs from 10 kHz. Adjust the delayMicroseconds value below
  *   to compensate. Lower value = higher sample rate, higher value = lower rate.
  * ========================================================================== */
-
 double read_frequency_from_microphone(int16_t* external_buffer, int buffer_size) {
-    /* external_buffer kept for API compatibility with main.cpp but not used */
     (void)external_buffer;
     (void)buffer_size;
 
     int16_t samples[SAMPLE_SIZE];
 
-    /* Sample ADC at ~10 kHz from pin 39 (A17) */
+    // Sample ADC at ~10 kHz
     for (int i = 0; i < SAMPLE_SIZE; i++) {
-        int raw    = analogRead(MICROPHONE_INPUT_PIN);       // 0 to 4095
-        samples[i] = (int16_t)(raw - ADC_CENTER_VALUE);     // center at zero: -2048 to +2047
-        delayMicroseconds(95);                               // ~100us per sample = ~10 kHz
+        samples[i] = (int16_t)analogRead(MICROPHONE_INPUT_PIN);
+        delayMicroseconds(75);
     }
 
-    /* Pass to FFT pipeline in audio_processing.c */
+    // Calculate actual mean of this buffer and subtract it
+    // This replaces the hardcoded ADC_CENTER_VALUE = 2048 subtraction
+    // which was wrong because the mic bias sits at ~2450, not 2048
+    long sum = 0;
+    for (int i = 0; i < SAMPLE_SIZE; i++) sum += samples[i];
+    int16_t actual_center = (int16_t)(sum / SAMPLE_SIZE);
+    for (int i = 0; i < SAMPLE_SIZE; i++) {
+        samples[i] = (int16_t)(samples[i] - actual_center);
+    }
+
+    // Pass DC-removed samples to FFT pipeline
     return apply_fft(samples, SAMPLE_SIZE);
 }
 

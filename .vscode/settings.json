@@ -2,7 +2,13 @@
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
   "C_Cpp_Runner.debuggerPath": "gdb",
-  "C_Cpp.intelliSenseEngine": "Tag Parser",
+  "C_Cpp.intelliSenseEngine": "Default",
+  "C_Cpp.default.configurationProvider": "platformio.platformio-ide",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+  "C_Cpp.files.exclude": {
+    "**/src/tests/demo_tuner.c": true,
+    "**/src/tests/teen_act.c": true
+  },
   "C_Cpp.dimInactiveRegions": false,
   "C_Cpp.default.defines": [
     "ARM_MATH_DSP=1",
@@ -62,8 +68,12 @@
   "C_Cpp_Runner.useLinkTimeOptimization": false,
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "files.associations": {
-    "string.h": "c"
+    "string.h": "c",
+    "demo_tuner.c": "plaintext",
+    "teen_act.c": "plaintext"
   },
   "C_Cpp_Runner.cStandard": "",
-  "claudeCodeChat.permissions.yoloMode": true
+  "claudeCodeChat.permissions.yoloMode": true,
+  "python.terminal.activateEnvironment": false,
+  "python.terminal.activateEnvInCurrentTerminal": false
 }

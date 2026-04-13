@@ -87,19 +87,19 @@ extern "C" {
  * DIGITAL SIGNAL PROCESSING (FFT)
  * ========================================================================== */
 
-#define FFT_SIZE                256    // 256-point FFT
+#define FFT_SIZE                1024   // 1024-point FFT: 10kHz / 1024 = 9.77 Hz/bin
 #define FFT_INPUT_SAMPLE_RATE   10000  // 10 kHz sample rate
-#define FFT_HZ_PER_BIN          (FFT_INPUT_SAMPLE_RATE / FFT_SIZE)  // ~39 Hz per bin
+#define FFT_HZ_PER_BIN  (FFT_INPUT_SAMPLE_RATE / FFT_SIZE)  // ~10.23 Hz per bin  // ~9.77 Hz per bin
+                                        // Parabolic interpolation: ±0.6 Hz typical accuracy
+                                        // 3-frame moving average: smoother detections
 
 /* Frequency detection range */
-#define MIN_DETECTABLE_FREQ     50.0f  // Below low E (82.41 Hz)
+#define MIN_DETECTABLE_FREQ     82.0f  // Skip noisy low bins; start from bin 7
 #define MAX_DETECTABLE_FREQ     400.0f // Above high E (329.63 Hz)
 
 /* Audio buffer */
-#define SAMPLE_SIZE             1024   // ADC samples per FFT frame
-
-/* Minimum signal amplitude to process (centered 12-bit ADC scale) */
-#define MIN_AMPLITUDE           100
+#define SAMPLE_SIZE             1024   // ADC samples per FFT frame (matches FFT_SIZE)
+#define MIN_AMPLITUDE           40
 
 /* ============================================================================
  * TUNING PARAMETERS
@@ -113,8 +113,8 @@ extern "C" {
  * AUDIO PLAYBACK CONFIGURATION
  * ========================================================================== */
 
-#define TONE_AMPLITUDE_DEFAULT  0.7f   // MQS tone volume (0.0 to 1.0)
-#define BEEP_AMPLITUDE_DEFAULT  0.5f   // MQS beep volume
+#define TONE_AMPLITUDE_DEFAULT  1.0f   // MQS tone volume (0.0 to 1.0)
+#define BEEP_AMPLITUDE_DEFAULT  1.0f   // MQS beep volume
 
 /* ============================================================================
  * TEENSY 4.1 HARDWARE

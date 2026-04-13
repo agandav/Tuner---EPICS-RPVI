@@ -28,6 +28,8 @@
             },
             "defines": [
                 "PLATFORMIO=60119",
+                "NO_SD_CARD",
+                "__INCLUDE_TEENSY_LIBS__",
                 "USE_ARM_MATH_MOCK",
                 ""
             ],

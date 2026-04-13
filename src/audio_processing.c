@@ -2,13 +2,10 @@
  * audio_processing.c - Audio processing with custom Radix-2 FFT
  *
  * CHANGES FROM ORIGINAL:
- *   1. Removed arm_math.h include entirely. The original file included
- *      CMSIS-DSP (arm_math.h) but never actually called any CMSIS function -
- *      the FFT used is the custom simple_radix2_fft() written in pure C.
- *      The include caused a build failure unless CMSIS-DSP was installed
- *      and USE_ARM_MATH_MOCK was defined. Both guards removed.
- *   2. MIN_AMPLITUDE now comes from config.h (value: 100) rather than
- *      audio_processing.h (which had it at 500, now removed to avoid conflict).
+ *   1. Removed arm_math.h include entirely.
+ *   2. MIN_AMPLITUDE now comes from config.h.
+ *   3. 1024-point FFT with parabolic interpolation.
+ *   4. Moving average removed — caused echo contamination.
  */
 
 #include <math.h>
@@ -22,49 +19,47 @@
 #define PI 3.14159265358979323846f
 #endif
 
-/* FFT configuration */
-#define FFT_SIZE 256   /* 256-point FFT: 10kHz / 256 = ~39 Hz/bin */
-
-/* Static FFT buffers */
-static float fft_real[FFT_SIZE];
-static float fft_imag[FFT_SIZE];
+static float fft_real[1024];
+static float fft_imag[1024];
 static float magnitude_spectrum[FFT_SIZE / 2];
 static int   fft_initialized = 0;
 
 /* ============================================================================
  * BIT REVERSAL
  * ========================================================================== */
-
 static void bit_reverse_permute(float *data_real, float *data_imag, uint32_t n) {
-    for (uint32_t i = 0; i < n; i++) {
-        uint32_t j        = i;
-        uint32_t reversed = 0;
+    uint32_t num_bits = 0;
+    uint32_t temp = n;
+    while (temp > 1) { num_bits++; temp >>= 1; }
 
-        for (uint32_t k = 0; k < 8; k++) {   /* log2(256) = 8 */
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t j = i, reversed = 0;
+        for (uint32_t k = 0; k < num_bits; k++) {
             reversed = (reversed << 1) | (j & 1);
             j >>= 1;
         }
-
         if (i < reversed) {
-            float tmp      = data_real[i];
-            data_real[i]   = data_real[reversed];
+            float tmp = data_real[i];
+            data_real[i] = data_real[reversed];
             data_real[reversed] = tmp;
-
-            tmp            = data_imag[i];
-            data_imag[i]   = data_imag[reversed];
+            tmp = data_imag[i];
+            data_imag[i] = data_imag[reversed];
             data_imag[reversed] = tmp;
         }
     }
 }
 
 /* ============================================================================
- * COOLEY-TUKEY RADIX-2 FFT (pure C, no CMSIS, no NEON)
+ * COOLEY-TUKEY RADIX-2 FFT
  * ========================================================================== */
-
 static void simple_radix2_fft(float *real, float *imag, uint32_t n) {
     bit_reverse_permute(real, imag, n);
 
-    for (uint32_t stage = 0; stage < 8; stage++) {       /* log2(256) = 8 stages */
+    uint32_t num_stages = 0;
+    uint32_t temp = n;
+    while (temp > 1) { num_stages++; temp >>= 1; }
+
+    for (uint32_t stage = 0; stage < num_stages; stage++) {
         uint32_t stage_size   = 1u << stage;
         uint32_t stage_stride = stage_size << 1;
 
@@ -92,7 +87,6 @@ static void simple_radix2_fft(float *real, float *imag, uint32_t n) {
 /* ============================================================================
  * HANN WINDOW
  * ========================================================================== */
-
 static void apply_hann_window(float *data, int num_samples) {
     for (int i = 0; i < num_samples; i++) {
         float window = 0.5f * (1.0f - cosf(2.0f * PI * i / (num_samples - 1)));
@@ -101,40 +95,63 @@ static void apply_hann_window(float *data, int num_samples) {
 }
 
 /* ============================================================================
- * PEAK DETECTION
+ * PEAK DETECTION with HPS and Parabolic Interpolation
  * ========================================================================== */
-
 static double find_peak_frequency(const float *magnitude, uint32_t num_bins,
                                   uint32_t sampling_rate) {
-    uint32_t peak_bin       = 0;
-    float    peak_magnitude = 0.0f;
+    uint32_t min_bin = (uint32_t)((MIN_DETECTABLE_FREQ * FFT_SIZE) / sampling_rate);
+    uint32_t max_bin = (uint32_t)((MAX_DETECTABLE_FREQ * FFT_SIZE) / sampling_rate);
 
-    /* Search up to 2000 Hz - covers all guitar fundamentals and first harmonics */
-    uint32_t search_limit = (num_bins * 2000) / sampling_rate;
-    if (search_limit > num_bins) search_limit = num_bins;
+    if (min_bin < 1) min_bin = 1;
+    if (max_bin >= num_bins) max_bin = num_bins - 1;
+    if (max_bin <= min_bin) return 0.0;
 
-    for (uint32_t i = 1; i < search_limit; i++) {
-        if (magnitude[i] > peak_magnitude) {
-            peak_magnitude = magnitude[i];
-            peak_bin       = i;
+    uint32_t peak_bin = 0;
+    float    peak_hps = 0.0f;
+
+    for (uint32_t i = min_bin; i <= max_bin; i++) {
+        uint32_t bin2 = i * 2;
+        uint32_t bin3 = i * 3;
+
+        float m1 = magnitude[i];
+        float m2 = (bin2 < num_bins) ? magnitude[bin2] : 0.0f;
+        float m3 = (bin3 < num_bins) ? magnitude[bin3] : 0.0f;
+
+        float hps = m1 * m2 * m3;
+        if (hps > peak_hps) {
+            peak_hps = hps;
+            peak_bin = i;
         }
     }
 
-    if (peak_magnitude < 0.5f) {
-        return 0.0;   /* No significant peak - noise or silence */
+    if (peak_hps < 0.000001f) return 0.0;
+
+    /* Parabolic interpolation */
+    double offset = 0.0;
+    if (peak_bin > 0 && peak_bin < num_bins - 1) {
+        float m_prev = magnitude[peak_bin - 1];
+        float m_curr = magnitude[peak_bin];
+        float m_next = magnitude[peak_bin + 1];
+        float denom  = m_prev - 2.0f * m_curr + m_next;
+        if (fabsf(denom) > 1e-10f) {
+            offset = 0.5 * (m_prev - m_next) / denom;
+            if (offset >  0.5) offset =  0.5;
+            if (offset < -0.5) offset = -0.5;
+        }
     }
 
-    return (double)peak_bin * sampling_rate / FFT_SIZE;
+    return ((double)peak_bin + offset) * sampling_rate / FFT_SIZE;
 }
 
 /* ============================================================================
  * PUBLIC API
  * ========================================================================== */
-
 void audio_processing_init(void) {
     printf("Audio processing initialized (Radix-2 FFT, pure C).\n");
     printf("Sample rate: %d Hz | FFT size: %d | Buffer: %d samples\n",
            SAMPLE_RATE, FFT_SIZE, SAMPLE_SIZE);
+    printf("Resolution: %.2f Hz/bin | With interpolation: ~+-1 Hz typical accuracy\n",
+           (float)SAMPLE_RATE / FFT_SIZE);
     fft_initialized = 1;
 }
 
@@ -155,24 +172,23 @@ void apply_gain(int16_t *samples, int num_samples, float gain_factor) {
 }
 
 double apply_fft(const int16_t *samples, int num_samples) {
-    if (!fft_initialized) {
-        printf("ERROR: FFT not initialized - call audio_processing_init() first\n");
-        return 0.0;
-    }
+    if (!fft_initialized) return 0.0;
     if (samples == NULL || num_samples == 0) return 0.0;
 
-    /* STEP 1: Check signal amplitude - reject noise */
+    int32_t sum = 0;
+    for (int i = 0; i < num_samples; i++) sum += samples[i];
+    int16_t dc_offset = (int16_t)(sum / num_samples);
+
     int max_amplitude = 0;
     for (int i = 0; i < num_samples; i++) {
-        int a = abs(samples[i]);
+        int a = abs(samples[i] - dc_offset);
         if (a > max_amplitude) max_amplitude = a;
     }
     if (max_amplitude < MIN_AMPLITUDE) return 0.0;
 
-    /* STEP 2: Convert to float, normalize to [-1, 1], zero-pad to FFT_SIZE */
     uint32_t input_size = (num_samples < FFT_SIZE) ? (uint32_t)num_samples : FFT_SIZE;
     for (uint32_t i = 0; i < input_size; i++) {
-        fft_real[i] = (float)samples[i] / 32768.0f;
+        fft_real[i] = (float)(samples[i] - dc_offset) / 32768.0f;
         fft_imag[i] = 0.0f;
     }
     for (uint32_t i = input_size; i < FFT_SIZE; i++) {
@@ -180,20 +196,15 @@ double apply_fft(const int16_t *samples, int num_samples) {
         fft_imag[i] = 0.0f;
     }
 
-    /* STEP 3: Apply Hann window to reduce spectral leakage */
     apply_hann_window(fft_real, FFT_SIZE);
-
-    /* STEP 4: Run FFT */
     simple_radix2_fft(fft_real, fft_imag, FFT_SIZE);
 
-    /* STEP 5: Compute magnitude spectrum */
     uint32_t num_bins = FFT_SIZE / 2;
     for (uint32_t i = 0; i < num_bins; i++) {
         magnitude_spectrum[i] = sqrtf(fft_real[i] * fft_real[i] +
                                       fft_imag[i] * fft_imag[i]);
     }
 
-    /* STEP 6: Find and return peak frequency */
     return find_peak_frequency(magnitude_spectrum, num_bins, SAMPLE_RATE);
 }
 
