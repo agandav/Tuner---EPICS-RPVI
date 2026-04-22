@@ -1,5 +1,5 @@
 /**
- * config.h - Hardware configuration for Teensy 4.1 Guitar Tuner
+ *  config.h - Hardware configuration for Teensy 4.1 Guitar Tuner
  *
  * FINAL CONFIRMED PINOUT - reconciled with electrical team
  *
@@ -47,7 +47,8 @@ extern "C" {
  * HIGH = Play Tone (Mode I), LOW = Listen Only (Mode O)
  * ========================================================================== */
 
-#define MODE_SWITCH_PIN 11
+#define MODE_3_PIN  2    // Mode 3: reference tone + beep
+#define MODE_1_PIN  11   // Mode 1: beep only
 
 /* ============================================================================
  * AUDIO OUTPUT - MQS

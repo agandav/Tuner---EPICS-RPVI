@@ -36,8 +36,8 @@ typedef struct {
     uint8_t  press_count;
 } button_state_machine_t;
 
-static button_state_machine_t button_states[6] = {0};
-static button_event_t         pending_event     = {0};
+static button_state_machine_t button_states[6] = {};
+static button_event_t         pending_event     = {};
 static bool                   pending_event_ready = false;
 static uint32_t               button_event_count  = 0;
 
@@ -57,9 +57,6 @@ int hardware_interface_init(void) {
     pinMode(STRING_4_BUTTON_PIN, INPUT_PULLDOWN);  // Pin 5
     pinMode(STRING_5_BUTTON_PIN, INPUT_PULLDOWN);  // Pin 6
     pinMode(STRING_6_BUTTON_PIN, INPUT_PULLDOWN);  // Pin 9
-
-    /* Mode switch - active HIGH, same logic */
-    pinMode(MODE_SWITCH_PIN, INPUT_PULLDOWN);       // Pin 11
 
    if (ENABLE_DEBUG_PRINTS) {
     printf("[HW] Hardware interface initialized\n");
@@ -166,7 +163,7 @@ void button_debounce(button_id_t button_id) {
 
 bool mode_switch_is_play_tone(void) {
 #ifdef __INCLUDE_TEENSY_LIBS__
-    return digitalRead(MODE_SWITCH_PIN) == HIGH;
+    return digitalRead(MODE_1_PIN) == HIGH;
 #else
     return false;
 #endif
@@ -214,7 +211,7 @@ void hardware_print_config(void) {
     printf("  String 6 (E2,  82.41 Hz): GPIO %d\n\n", STRING_6_BUTTON_PIN);
 
     printf("MODE SWITCH:\n");
-    printf("  Pin %d (HIGH = Play Tone, LOW = Listen Only)\n\n", MODE_SWITCH_PIN);
+    printf("  Mode 1 pin: %d | Mode 3 pin: %d\n\n", MODE_1_PIN, MODE_3_PIN);
 
     printf("AUDIO OUTPUT (MQS):\n");
     printf("  Pin 10 (MQSR) -> LM386 IN\n");
